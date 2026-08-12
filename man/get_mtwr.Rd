@@ -4,7 +4,7 @@
 \alias{get_mtwr}
 \title{Get Montana Water Rights Data}
 \usage{
-get_mtwr(filter_geom, layer, local_path = NULL)
+get_mtwr(filter_geom, layer, local_path = NULL, active_only = TRUE)
 }
 \arguments{
 \item{filter_geom}{an object of class bbox be used for clipping.}
@@ -12,6 +12,10 @@ get_mtwr(filter_geom, layer, local_path = NULL)
 \item{layer}{Layer name within the \verb{https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip} gdb.}
 
 \item{local_path}{A file path character string to the MT gdb for water rights POU and POD layers. 'Z:/some_path/wr_rights.gdb'}
+
+\item{active_only}{Whether to restrict the returned data to rights currently
+eligible for analysis. Set to \code{FALSE} when creating an update snapshot so
+retired rights are retained for comparison.}
 }
 \description{
 Get Montana Water Rights Data

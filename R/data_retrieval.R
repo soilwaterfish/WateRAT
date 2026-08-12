@@ -2,10 +2,13 @@
 #' @param filter_geom an object of class bbox be used for clipping.
 #' @param layer Layer name within the `https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip` gdb.
 #' @param local_path A file path character string to the MT gdb for water rights POU and POD layers. 'Z:/some_path/wr_rights.gdb'
+#' @param active_only Whether to restrict the returned data to rights currently
+#'   eligible for analysis. Set to `FALSE` when creating an update snapshot so
+#'   retired rights are retained for comparison.
 #' @return
 #' @export
 #'
-get_mtwr <- function(filter_geom, layer, local_path = NULL) {
+get_mtwr <- function(filter_geom, layer, local_path = NULL, active_only = TRUE) {
 
   tmp <- tempfile(fileext = ".gpkg")
 
@@ -24,10 +27,16 @@ get_mtwr <- function(filter_geom, layer, local_path = NULL) {
   sf::write_sf(filter_geom, tmpclp)
 
 
+    where_clause <- if (!active_only) {
+      ""
+    } else if (layer == "WRQS_PODS") {
+      "-where \"WR_STATUS = 'ACTIVE' AND MAX_FLOW_RT IS NOT NULL\""
+    } else {
+      "-where \"WR_STATUS = 'ACTIVE' AND SOURCE_TYPE = 'SURFACE'\""
+    }
+
     system(paste("ogr2ogr -spat ", paste(bb[[1]], bb[[2]],
-                                         bb[[3]], bb[[4]]), "-clipsrc ", tmpclp, ifelse(layer ==
-                                                                                          "WRQS_PODS", "-where \"WR_STATUS = 'ACTIVE' AND MAX_FLOW_RT IS NOT NULL\"",
-                                                                                        "-where \"WR_STATUS = 'ACTIVE' AND SOURCE_TYPE = 'SURFACE'\""),
+                                         bb[[3]], bb[[4]]), "-clipsrc ", tmpclp, where_clause,
                  " -f \"GPKG\"", tmp, local_path, paste(layer, sep = " ",
                                                         collapse = " ")), intern = TRUE)
 
@@ -100,5 +109,4 @@ url <- arcgislayers::arc_open('https://apps.fs.usda.gov/arcx/rest/services/EDW/E
 admin <- arcgislayers::arc_select(url, filter_geom = filter_geom, ...)
 
 }
-
 

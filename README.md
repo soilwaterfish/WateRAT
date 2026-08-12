@@ -740,3 +740,41 @@ error = "continue"
 ```
 
 A subsequent run can then attempt the unfinished work while retaining successfully completed COMID branches.
+
+## Updating water-right data incrementally
+
+Before replacing a Montana water-right download, create a snapshot that includes both active and retired PODs. Snapshots are local operational data and should stay outside the repository (or under the ignored `data/` directory).
+
+```r
+old_pods <- get_mtwr(
+  basin,
+  layer = "WRQS_PODS",
+  local_path = "data/WRQS_Dataset_GDB.gdb",
+  active_only = FALSE
+) |>
+  sf::read_sf() |>
+  water_right_snapshot()
+
+write_water_right_snapshot(old_pods, "data/snapshots/pods_previous.gpkg")
+```
+
+After downloading the replacement dataset, create a new snapshot, detect changes, and select the COMID basins to rebuild:
+
+```r
+previous <- read_water_right_snapshot("data/snapshots/pods_previous.gpkg")
+
+current <- get_mtwr(
+  basin,
+  layer = "WRQS_PODS",
+  local_path = "data/WRQS_Dataset_GDB.gdb",
+  active_only = FALSE
+) |>
+  sf::read_sf() |>
+  water_right_snapshot()
+
+changes <- detect_water_right_changes(previous, current)
+affected_comids <- affected_downstream_comids(changes, basins)
+affected_basins <- affected_downstream_basins(changes, basins)
+```
+
+`changes` labels each POD as `added` or `retired`. A COMID is selected when its upstream basin contains a changed POD, so `affected_comids` is precisely the downstream set whose allocation metrics must be recalculated. Pass `affected_basins` to the `capture_sites_within()` dynamic branches instead of the full `basins` object, then merge the recalculated COMIDs into the previously published result.
