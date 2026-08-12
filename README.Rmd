@@ -2,9 +2,7 @@
 
 output: github_document
 always_allow_html: true
------------------------
-
-<!-- README.md is generated from README.Rmd. Please edit README.Rmd -->
+---
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
