@@ -39,17 +39,24 @@ order (Strahler) streamlines via COMID and provides the following
 attributes:
 `intersecting_sites, intersecting_flow_all_together, intersecting_flow_fs, intersecting_flow_private, MAUG_HIST, gnis_name, intersecting_flow_all_together_percent, intersecting_flow_fs_percent, intersecting_flow_private_percent`.
 
-<img src="inst/www/flow_chart.png" width="200%" />
+<img src="inst/www/flow_chart.png" alt="" width="200%" />
 
 <table>
+
 <tr>
+
 <td valign="top">
+
 <img src="inst/www/animated_wf.gif"/>
 </td>
+
 <td valign="top">
+
 <img src="inst/www/animated_wf2.gif"/>
 </td>
+
 </tr>
+
 </table>
 
 ## Example
@@ -60,12 +67,12 @@ The example below shows how the to call the `targets` package.
 library(targets)
 
 #This will run the targets workflow
-
+tar_destroy()
 tar_make() 
 
 # or for parallel processing
 
-tar_make_future(workers = 10)
+tar_make_future(workers = 5)
 ```
 
 If needed, you can change the `_targets.R` file to adjust for local/API
@@ -170,6 +177,318 @@ tar_target(pou_pod_together_sf_final_joined, adding_intersecting_flows %>%
 
 list(targets)
 ```
+
+## Running the `targets` Pipeline in Parallel
+
+This pipeline uses [`targets`](https://books.ropensci.org/targets/) with
+`crew` to parallelize processing across watershed COMIDs.
+
+The computationally expensive `capture_sites_within()` operation is
+implemented as a **dynamic target**, so individual COMIDs can be
+distributed across workers.
+
+### 1. Install required packages
+
+From R:
+
+``` r
+install.packages(c(
+  "targets",
+  "tarchetypes",
+  "crew"
+))
+```
+
+The project-specific packages must also be installed and available to
+the workers:
+
+``` r
+install.packages(c(
+  "nhdplusTools",
+  "furrr",
+  "tidyverse",
+  "sf"
+))
+```
+
+The `wrqur` package must also be installed.
+
+------------------------------------------------------------------------
+
+## 2. Configure parallel workers
+
+The HPC node has approximately 100 CPU cores available.
+
+The pipeline is configured to use **96 concurrent workers**, leaving
+several cores available for the operating system, the main `targets`
+process, filesystem operations, and other overhead.
+
+At the beginning of `_targets.R`:
+
+``` r
+library(targets)
+library(tarchetypes)
+library(crew)
+
+tar_option_set(
+  packages = c(
+    "wrqur",
+    "nhdplusTools",
+    "tidyverse",
+    "sf"
+  ),
+  controller = crew::crew_controller_local(
+    workers = 96
+  )
+)
+```
+
+`future`, `future.callr`, and `furrr` are not required for
+pipeline-level parallelism.
+
+In particular, do **not** use:
+
+``` r
+plan(callr)
+```
+
+or run the pipeline with:
+
+``` r
+tar_make_future(workers = 50)
+```
+
+The `crew` controller now manages parallel execution.
+
+------------------------------------------------------------------------
+
+## 3. Parallelize `capture_sites_within()`
+
+Instead of running `furrr::future_map()` inside one large target, split
+the basin into individual COMIDs and expose those COMIDs to `targets` as
+dynamic branches.
+
+Replace:
+
+``` r
+tar_target(
+  adding_intersecting_flows,
+  basins %>%
+    split(.$comid) %>%
+    furrr::future_map(
+      ~ capture_sites_within(
+        .x,
+        pou_pod_together_fs_intersection
+      )
+    ) %>%
+    dplyr::bind_rows() %>%
+    sf::st_as_sf()
+)
+```
+
+with:
+
+``` r
+tar_target(
+  basin_comids,
+  split(
+    basins,
+    basins$comid
+  ),
+  iteration = "list"
+),
+
+tar_target(
+  captured_sites,
+  capture_sites_within(
+    basin_comids,
+    pou_pod_together_fs_intersection
+  ),
+  pattern = map(basin_comids),
+  iteration = "list"
+),
+
+tar_target(
+  adding_intersecting_flows,
+  captured_sites %>%
+    dplyr::bind_rows() %>%
+    sf::st_as_sf()
+)
+```
+
+Because this code occurs inside the existing `tar_map()`, each major
+watershed still has its own pipeline while the individual COMIDs within
+each watershed become dynamic branches.
+
+Conceptually:
+
+``` text
+Kootenai
+   ├── COMID 1 ── capture_sites_within()
+   ├── COMID 2 ── capture_sites_within()
+   ├── COMID 3 ── capture_sites_within()
+   └── ...
+
+Clark Fork
+   ├── COMID 1 ── capture_sites_within()
+   ├── COMID 2 ── capture_sites_within()
+   └── ...
+
+Missouri
+   ├── COMID 1 ── capture_sites_within()
+   └── ...
+
+Yellowstone
+   └── ...
+
+Little Missouri
+   └── ...
+```
+
+`targets` can then schedule up to 96 ready COMID branches
+simultaneously.
+
+------------------------------------------------------------------------
+
+## 4. Run the pipeline
+
+From the project directory:
+
+``` bash
+Rscript -e 'targets::tar_make()'
+```
+
+Or interactively from R:
+
+``` r
+library(targets)
+
+tar_make()
+```
+
+Do **not** use:
+
+``` r
+tar_make_future()
+```
+
+Parallel execution is controlled by the `crew` controller defined in
+`_targets.R`.
+
+------------------------------------------------------------------------
+
+## 5. Inspect the pipeline before running
+
+To visualize the target dependency graph:
+
+``` r
+targets::tar_visnetwork()
+```
+
+To list targets:
+
+``` r
+targets::tar_manifest()
+```
+
+To see which targets are currently outdated and need to run:
+
+``` r
+targets::tar_outdated()
+```
+
+------------------------------------------------------------------------
+
+## 6. Re-running the pipeline
+
+One major advantage of making `capture_sites_within()` a dynamic target
+is that each COMID is independently cached.
+
+If the pipeline stops partway through, simply run:
+
+``` r
+tar_make()
+```
+
+again.
+
+Completed branches remain cached and `targets` will continue with
+branches that still need to run.
+
+Similarly, if an upstream dependency changes, `targets` determines which
+COMID branches need to be rebuilt.
+
+------------------------------------------------------------------------
+
+## Worker count
+
+Default:
+
+``` r
+workers = 96
+```
+
+If memory or filesystem I/O becomes limiting, reduce the worker count:
+
+``` r
+controller = crew::crew_controller_local(
+  workers = 64
+)
+```
+
+or:
+
+``` r
+controller = crew::crew_controller_local(
+  workers = 80
+)
+```
+
+For `sf` operations, increasing CPU workers can substantially increase
+memory use because multiple workers may simultaneously load or operate
+on large spatial objects.
+
+A good initial test is therefore:
+
+``` r
+workers = 96
+```
+
+while monitoring CPU utilization, RAM, and I/O.
+
+If all cores remain busy and memory usage is acceptable, retain 96
+workers. If the node spends substantial time in I/O wait or memory
+pressure increases, reduce the number of workers.
+
+------------------------------------------------------------------------
+
+## Full execution
+
+Once `_targets.R` has been configured:
+
+``` bash
+cd /path/to/project
+
+Rscript -e 'targets::tar_make()'
+```
+
+The intended parallelization hierarchy is:
+
+``` text
+targets
+   │
+   ├── major watersheds
+   │
+   └── COMID dynamic branches
+          │
+          └── capture_sites_within()
+                 │
+                 └── up to 96 concurrent workers
+```
+
+`targets`/`crew` should control the worker pool globally. Avoid starting
+additional `future`, `furrr`, or other nested parallel worker pools
+inside `capture_sites_within()`.
 
 ## References
 

@@ -6,29 +6,31 @@
 #' @export
 #'
 get_mtwr <- function(filter_geom, layer, local_path = NULL) {
-  url <- "https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip"
+
   tmp <- tempfile(fileext = ".gpkg")
-  filter_geom <- sf::st_transform(filter_geom, 32100)
+
+  x <- st_read(local_path,
+    layer = layer,
+    query = paste0("SELECT * FROM ",layer," LIMIT 0"),
+    quiet = TRUE
+  )
+
+  filter_geom <- sf::st_transform(filter_geom, sf::st_crs(x))
+
   bb <- sf::st_bbox(filter_geom)
+
   tmpclp <- tempfile(fileext = ".shp")
+
   sf::write_sf(filter_geom, tmpclp)
-  if (!is.null(local_path)) {
+
+
     system(paste("ogr2ogr -spat ", paste(bb[[1]], bb[[2]],
                                          bb[[3]], bb[[4]]), "-clipsrc ", tmpclp, ifelse(layer ==
                                                                                           "WRQS_PODS", "-where \"WR_STATUS = 'ACTIVE' AND MAX_FLOW_RT IS NOT NULL\"",
                                                                                         "-where \"WR_STATUS = 'ACTIVE' AND SOURCE_TYPE = 'SURFACE'\""),
                  " -f \"GPKG\"", tmp, local_path, paste(layer, sep = " ",
                                                         collapse = " ")), intern = TRUE)
-  }
-  else {
-    system(paste("ogr2ogr -spat ", paste(bb[[1]], bb[[2]],
-                                         bb[[3]], bb[[4]]), "-clipsrc ", tmpclp, ifelse(layer ==
-                                                                                          "WRQS_PODS", "-where \"WR_STATUS = 'ACTIVE' AND MAX_FLOW_RT IS NOT NULL\"",
-                                                                                        "-where \"WR_STATUS = 'ACTIVE' AND SOURCE_TYPE = 'SURFACE'\""),
-                 " -f \"FileGDB\"", tmp, paste0("/vsizip//vsicurl/",
-                                                url), paste(layer, sep = " ", collapse = " ")),
-           intern = TRUE)
-  }
+
   tmp
 }
 
@@ -45,11 +47,12 @@ get_mtwr <- function(filter_geom, layer, local_path = NULL) {
 #'
 #' @param filter_geom an object of class bbox, sfc or sfg used to filter query results based on a predicate function.
 #' @param local_path A file path character string to the MT gdb for water rights POU and POD layers. 'Z:/some_path/wr_rights.gdb'
+#' @param layer A character
 #' @param ... Arguments to pass to \link[arcgislayers] package `arc_select` function.
 #' @return
 #' @export
 #'
-get_flowmet <- function(filter_geom, local_path = NULL, ...){
+get_flowmet <- function(filter_geom,layer, local_path = NULL, ...){
 
 
   if(is.null(local_path)){
@@ -68,16 +71,10 @@ get_flowmet <- function(filter_geom, local_path = NULL, ...){
 
     sf::write_sf(filter_geom, tmpclp)
 
-    system(paste('ogr2ogr -spat ',
-                   paste(bb[[1]],
-                         bb[[2]],
-                         bb[[3]],
-                         bb[[4]]),
-                   '-clipsrc ', tmpclp,
-                   ' -f "ESRI Shapefile"',
-                   tmp,
-                   local_path,
-                 paste("Hydro_FlowMet_1990s", sep = " ", collapse = " ")), intern = TRUE)
+    system(paste("ogr2ogr -spat ", paste(bb[[1]], bb[[2]],
+                                         bb[[3]], bb[[4]]), "-clipsrc ", tmpclp,
+                 " -f \"GPKG\"", tmp, local_path, paste(layer, sep = " ",
+                                                        collapse = " ")), intern = TRUE)
 
     tmp
   }

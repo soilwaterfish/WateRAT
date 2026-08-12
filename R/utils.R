@@ -80,27 +80,27 @@ capture_sites_within <- function(x, tog) {
   adding_flows <- tog %>% dplyr::filter(WRKEY %in% WRKEYS)
 x <- x %>% dplyr::mutate(intersecting_sites = stringr::str_c(WRKEYS[!is.na(WRKEYS)],
                           collapse = ", "),
-                         intersecting_flow_all_together = sum(adding_flows$MAX_FLOW_RT,
+                         intersecting_flow_all_together = sum(adding_flows$MAX_FLOW_CFS,
                           na.rm = TRUE),
                          intersecting_flow_all_together_instream = sum(adding_flows[adding_flows$MEANS_OF_DIV ==
-                          "INSTREAM", ]$MAX_FLOW_RT, na.rm = TRUE),
+                          "INSTREAM", ]$MAX_FLOW_CFS, na.rm = TRUE),
                          intersecting_flow_all_together_non_instream = sum(adding_flows[adding_flows$MEANS_OF_DIV !=
-                          "INSTREAM", ]$MAX_FLOW_RT, na.rm = TRUE),
+                          "INSTREAM", ]$MAX_FLOW_CFS, na.rm = TRUE),
                          intersecting_flow_fs = sum(adding_flows[adding_flows$fs_intersection,
-                          ]$MAX_FLOW_RT, na.rm = TRUE),
+                          ]$MAX_FLOW_CFS, na.rm = TRUE),
                          intersecting_flow_fs_instream = sum(adding_flows[adding_flows$fs_intersection &
-                          adding_flows$MEANS_OF_DIV == "INSTREAM", ]$MAX_FLOW_RT,
+                          adding_flows$MEANS_OF_DIV == "INSTREAM", ]$MAX_FLOW_CFS,
                           na.rm = TRUE),
                          intersecting_flow_fs_non_instream = sum(adding_flows[adding_flows$fs_intersection &
-                          adding_flows$MEANS_OF_DIV != "INSTREAM", ]$MAX_FLOW_RT,
+                          adding_flows$MEANS_OF_DIV != "INSTREAM", ]$MAX_FLOW_CFS,
                           na.rm = TRUE),
                          intersecting_flow_private = sum(adding_flows[!adding_flows$fs_intersection,
-                          ]$MAX_FLOW_RT,
+                          ]$MAX_FLOW_CFS,
                           na.rm = TRUE), intersecting_flow_private_instream = sum(adding_flows[!adding_flows$fs_intersection &
-                          adding_flows$MEANS_OF_DIV == "INSTREAM", ]$MAX_FLOW_RT,
+                          adding_flows$MEANS_OF_DIV == "INSTREAM", ]$MAX_FLOW_CFS,
                           na.rm = TRUE),
                          intersecting_flow_private_non_instream = sum(adding_flows[!adding_flows$fs_intersection &
-                          adding_flows$MEANS_OF_DIV != "INSTREAM", ]$MAX_FLOW_RT,
+                          adding_flows$MEANS_OF_DIV != "INSTREAM", ]$MAX_FLOW_CFS,
                                                      na.rm = TRUE))
 }
 
@@ -153,31 +153,39 @@ date_cleaning <- function(data) {
 #'
 #' @return
 #' @export
-get_pod_basins <- function(data, crs) {
+get_pod_basin <- function(comid, crs) {
 
+  basin <- nhdplusTools::get_nldi_basin(
+    list(
+      featureSource = "comid",
+      featureID = as.character(comid)
+    )
+  )
 
-  basins <- data %>%
-    split(.$COMID) %>%
-    furrr::future_map(purrr::safely(~nhdplusTools::get_nldi_basin(list(featureSource = 'comid', featureID = .$COMID))))
+  # NLDI may legitimately return no basin.
+  if (is.null(basin) || nrow(basin) == 0L) {
+    return(NULL)
+  }
 
-  names_b <- names(basins)
+  basin <- sf::st_zm(basin)
 
-  basins_final <- basins  %>%
-    purrr::keep(~length(.) != 0) %>%
-    purrr::map(~.x[['result']]) %>%
-    purrr::map2(., names_b, purrr::safely(~.x %>% dplyr::mutate(COMID = .y))) %>%
-    purrr::keep(~length(.) != 0) %>%
-    purrr::map(~.x[['result']]) %>%
-    plyr::rbind.fill()%>%
-    sf::st_as_sf()
+  basin <- basin[
+    !sf::st_is_empty(basin),
+    ,
+    drop = FALSE
+  ]
 
+  if (nrow(basin) == 0L) {
+    return(NULL)
+  }
 
-  basins_final <- basins_final[!sf::st_is_empty(sf::st_zm(basins_final)),,drop=FALSE]
-
-  basins_final <- basins_final %>%
-    sf::st_transform(crs = crs)
-
-
+  basin %>%
+    dplyr::mutate(
+      comid = as.character(comid)
+    ) %>%
+    sf::st_transform(
+      crs = crs
+    )
 }
 
 #' FS Logic
