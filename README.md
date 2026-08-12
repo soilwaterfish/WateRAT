@@ -1,197 +1,35 @@
+---
 
-<!-- README.md is generated from README.Rmd. Please edit that file -->
+output: github_document
+always_allow_html: true
+-----------------------
+
+<!-- README.md is generated from README.Rmd. Please edit README.Rmd -->
+
+
 
 # wrqur
 
-Water Rights Quantification/Uses for R provides methods for retrieving
-water allocation and flow data. It uses functions that call API’s or use
-local data to compare [Points of Diversion
-(POD)](https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip)
-in Montana with
-[FlowMet](https://www.fs.usda.gov/rm/boise/AWAE/projects/modeled_stream_flow_metrics.shtml)
-flow outputs for the month of August. This work was developed by Brianna
-Niehoff for her master’s thesis (Oestreich, 2023) at the Montana State
-University.
+Water Rights Quantification/Uses for R (`wrqur`) provides methods for retrieving and analyzing water allocation and modeled streamflow data.
 
-In addition, the package uses a
-[{targets}](https://books.ropensci.org/targets/) pipeline to help with
-updating POD or FlowMet derivatives.
+The package uses Montana [Points of Diversion (POD)](https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip) and [FlowMet](https://www.fs.usda.gov/rm/boise/AWAE/projects/modeled_stream_flow_metrics.shtml) streamflow outputs to quantify water allocations relative to modeled August streamflow.
+
+This work was originally developed as part of a master's thesis at Montana State University (Oestreich, 2023).
+
+The package also includes a [{targets}](https://books.ropensci.org/targets/) pipeline for reproducibly updating and processing POD, FlowMet, NHDPlus, and administrative-boundary data. Parallel execution is managed with [`crew`](https://wlandau.github.io/crew/), with individual stream reaches processed as dynamic `targets` branches.
 
 ## Installation
 
-You can install the development version of wrqur from
-[GitHub](https://github.com/) with:
+Install the development version of `wrqur` from GitHub with:
 
-``` r
+```r
 # install.packages("devtools")
 devtools::install_github("soilwaterfish/wrqur")
 ```
 
-## Methods
+To run the development pipeline, install the workflow packages if needed:
 
-The model takes in any basin configuration and then calls local files or
-APIs with FlowMet `get_flowmet()`, Forest Service Administration
-Boundaries `get_adminboundaries()`, and PODs `get_mtwr()`. From there,
-utility functions help generate the intersecting FlowMet, Administration
-Boundaries, and POD values via common identifiers (COMID) and basins
-(see GIF below). This then relates all flow allocation metrics to \> 1st
-order (Strahler) streamlines via COMID and provides the following
-attributes:
-`intersecting_sites, intersecting_flow_all_together, intersecting_flow_fs, intersecting_flow_private, MAUG_HIST, gnis_name, intersecting_flow_all_together_percent, intersecting_flow_fs_percent, intersecting_flow_private_percent`.
-
-<img src="inst/www/flow_chart.png" alt="" width="200%" />
-
-<table>
-
-<tr>
-
-<td valign="top">
-
-<img src="inst/www/animated_wf.gif"/>
-</td>
-
-<td valign="top">
-
-<img src="inst/www/animated_wf2.gif"/>
-</td>
-
-</tr>
-
-</table>
-
-## Example
-
-The example below shows how the to call the `targets` package.
-
-``` r
-library(targets)
-
-#This will run the targets workflow
-tar_destroy()
-tar_make() 
-
-# or for parallel processing
-
-tar_make_future(workers = 5)
-```
-
-If needed, you can change the `_targets.R` file to adjust for local/API
-calls or starting basins.
-
-``` r
-
-# Load packages required to define the pipeline:
-library(targets)
-library(tarchetypes)
-library(future)
-library(future.callr)
-plan(callr)
-
-# Set target options:
-tar_option_set(packages = c( "wrqur", "nhdplusTools", "furrr","tidyverse",  "sf")
-)
-
-### This `basin_entry` will depend on the user defined watershed boundary.
-values = dplyr::tibble(values = c("data/kootenai.shp",
-                                  "data/clark_fork.shp",
-                                  "data/missouri.shp",
-                                  "data/yellowstone.shp"
-                                  "data/little_missouri.shp"
-                                  ))
-targets <- tar_map(
-
-values = values,
-
-tar_target(basin, sf::read_sf(values)),
-
-tar_target(basin_crs, sf::st_crs(basin)),
-
-tar_target(admin_int, suppressMessages(get_adminboundaries(filter_geom = sf::st_bbox(sf::st_transform(basin, 4269)),
-                                                           where = "OWNERCLASSIFICATION='USDA FOREST SERVICE' OR OWNERCLASSIFICATION='UNPARTITIONED RIPARIAN INTEREST'")%>%
-                                         sf::st_transform(crs = basin_crs) %>%
-                                         sf::st_make_valid() %>%
-                                         sf::st_intersection(basin) %>%
-                                         sf::st_union() %>%
-                                         sf::st_as_sf())),
-
-tar_target(flowmet_intersect, get_flowmet(filter_geom = basin, local_path = r"{Z:\Downloads\S_USA.Hydro_FlowMet_1990s.gdb\S_USA.Hydro_FlowMet_1990s.gdb}")  %>%
-             sf::read_sf()%>%
-             sf::st_zm() %>%
-             dplyr::select(c("MAUG_HIST", "COMID")) %>%
-                                      sf::st_transform(crs = basin_crs) %>%
-                                      sf::st_intersection(basin)),
-
-tar_target(nhdplus, nhdplusTools::get_nhdplus(sf::st_as_sfc(sf::st_bbox(flowmet_intersect)))),
-
-tar_target(flowmet_join_nhdplus, flowmet_intersect %>% dplyr::select(MAUG_HIST, COMID) %>%
-    dplyr::left_join(nhdplus %>%
-                       sf::st_drop_geometry() %>%
-                       dplyr::mutate(comid = as.character(comid)), by = c('COMID' = 'comid'))
-),
-
-tar_target(pou, get_mtwr(basin, layer = 'WR1POU', local_path =  r'{Z:\Downloads\MTWaterRights.gdb\MTWaterRights.gdb}') %>%
-             sf::read_sf() %>%
-             dplyr::group_by(WRKEY) %>%
-             dplyr::slice(1) %>%
-             dplyr::ungroup()),
-
-tar_target(pod, get_mtwr(basin, layer = 'WR1DIV', local_path =  r'{Z:\Downloads\MTWaterRights.gdb\MTWaterRights.gdb}') %>%
-             sf::read_sf() %>%
-             dplyr::group_by(WRKEY) %>%
-             dplyr::slice(1) %>%
-             dplyr::ungroup() %>%
-             dplyr::filter(WRKEY %in% pou$WRKEY)),
-
-tar_target(pou_pod_together, suppressMessages(pod %>%
-                                                  dplyr::left_join(pou %>%
-                                                                     sf::st_drop_geometry() %>%
-                                                                     dplyr::select(c("WRKEY", "PURPOSE", "IRRTYPE", "MAXACRES", "FLWRTGPM", "FLWRTCFS", "VOL", "ACREAGE"))))
-),
-
-tar_target(pou_pod_together_sf, date_cleaning(pou_pod_together)),
-
-tar_target(flowmet_grt_strahler_1_order, flowmet_join_nhdplus %>% filter(streamorde > 1)),
-
-tar_target(crs, sf::st_crs(pou_pod_together_sf)),
-
-tar_target(basins, get_pod_basins(flowmet_grt_strahler_1_order, crs)),
-
-tar_target(pou_pod_together_fs_intersection, fs_logic(pou_pod_together_sf, admin_int)),
-
-tar_target(adding_intersecting_flows, basins %>% split(.$COMID) %>%
-             furrr::future_map(
-               ~capture_sites_within(.x, pou_pod_together_fs_intersection)) %>%
-             dplyr::bind_rows() %>%
-             sf::st_as_sf()),
-tar_target(pou_pod_together_sf_final_joined, adding_intersecting_flows %>%
-             st_drop_geometry() %>%
-             left_join(flowmet_grt_strahler_1_order %>% select(COMID,MAUG_HIST, gnis_name, qe_08)) %>%
-             st_as_sf() %>%
-             mutate(
-               intersecting_flow_all_together_percent = (intersecting_flow_all_together/MAUG_HIST)*100,
-               intersecting_flow_fs_percent = (intersecting_flow_fs/MAUG_HIST)*100,
-               intersecting_flow_private_percent = (intersecting_flow_private/MAUG_HIST)*100
-             ))
-)
-
-
-list(targets)
-```
-
-## Running the `targets` Pipeline in Parallel
-
-This pipeline uses [`targets`](https://books.ropensci.org/targets/) with
-`crew` to parallelize processing across watershed COMIDs.
-
-The computationally expensive `capture_sites_within()` operation is
-implemented as a **dynamic target**, so individual COMIDs can be
-distributed across workers.
-
-### 1. Install required packages
-
-From R:
-
-``` r
+```r
 install.packages(c(
   "targets",
   "tarchetypes",
@@ -199,299 +37,711 @@ install.packages(c(
 ))
 ```
 
-The project-specific packages must also be installed and available to
-the workers:
+The remaining spatial and data-processing dependencies are installed with `wrqur` or can be installed separately if needed.
 
-``` r
-install.packages(c(
-  "nhdplusTools",
-  "furrr",
-  "tidyverse",
-  "sf"
-))
-```
+## Methods
 
-The `wrqur` package must also be installed.
+The workflow accepts one or more watershed boundaries and combines local spatial data and external services using functions including:
 
-------------------------------------------------------------------------
+* `get_flowmet()` for FlowMet streamflow data;
+* `get_mtwr()` for Montana water-right POD data;
+* `get_pod_basin()` for retrieving an upstream drainage basin for a single COMID;
+* `fs_logic()` for separating Forest Service and private water allocations; and
+* `capture_sites_within()` for summarizing PODs and allocated flow within each drainage area.
 
-## 2. Configure parallel workers
+FlowMet stream reaches are joined to NHDPlus using the common COMID identifier. The analysis is restricted to greater than first-order Strahler streams and calculates water allocations relative to modeled August streamflow.
 
-The HPC node has approximately 100 CPU cores available.
+The resulting dataset includes attributes such as:
 
-The pipeline is configured to use **96 concurrent workers**, leaving
-several cores available for the operating system, the main `targets`
-process, filesystem operations, and other overhead.
+* `intersecting_sites`
+* `intersecting_flow_all_together`
+* `intersecting_flow_fs`
+* `intersecting_flow_private`
+* `maug_hist`
+* `gnis_name`
+* `intersecting_flow_all_together_percent`
+* `intersecting_flow_fs_percent`
+* `intersecting_flow_private_percent`
 
-At the beginning of `_targets.R`:
+<div class="figure">
+<img src="inst/www/flow_chart.png" alt="plot of chunk unnamed-chunk-2" width="200%" />
+<p class="caption">plot of chunk unnamed-chunk-2</p>
+</div>
+
+<table>
+  <tr>
+    <td valign="top"><img src="inst/www/animated_wf.gif"/></td>
+    <td valign="top"><img src="inst/www/animated_wf2.gif"/></td>
+  </tr>
+</table>
+
+## Targets workflow
+
+The project uses `targets` to manage dependencies, caching, parallel execution, and reproducible processing.
+
+Run the pipeline from R with:
+
 
 ``` r
 library(targets)
+
+tar_make()
+```
+
+or from the command line:
+
+```bash
+Rscript -e 'targets::tar_make()'
+```
+
+Parallel execution is configured directly in `_targets.R` with `crew`, so the standard `tar_make()` command runs the parallel pipeline.
+
+Useful commands for inspecting the workflow include:
+
+
+``` r
+# Visualize the dependency graph
+tar_visnetwork()
+
+# Show targets that need to be rebuilt
+tar_outdated()
+
+# Inspect pipeline progress
+tar_progress()
+
+# Inspect the target manifest
+tar_manifest()
+
+# Summarize crew worker use after a run
+tar_crew()
+```
+
+### Starting from scratch
+
+Normally, rerun:
+
+
+``` r
+tar_make()
+```
+
+and `targets` will reuse completed targets and only rebuild portions of the pipeline that are outdated.
+
+To deliberately delete the entire target store and force a complete rebuild:
+
+
+``` r
+tar_destroy()
+tar_make()
+```
+
+Use `tar_destroy()` only when a complete rebuild is desired because it removes the existing `_targets` data store and cached results.
+
+## Parallel processing
+
+Parallel execution is managed entirely by `targets` and `crew`.
+
+The workflow uses two levels of branching:
+
+1. `tar_map()` creates a static pipeline for each major watershed.
+2. COMIDs within each watershed are exposed as dynamic branches for computationally independent operations.
+
+Two `crew` worker pools are used because the NLDI basin retrieval and local spatial calculations have different resource requirements:
+
+```text
+100 available CPU cores
+
+├── 8 workers  -> NLDI basin retrieval
+├── 88 workers -> local spatial computation
+└── 4 cores    -> operating system / targets / overhead
+```
+
+The `nldi` controller handles calls to `nhdplusTools::get_nldi_basin()`. Limiting this stage to a smaller number of workers prevents the workflow from sending dozens of simultaneous requests to the remote NLDI service.
+
+The `compute` controller handles the remaining pipeline and provides up to 88 concurrent workers for local computation, including `capture_sites_within()`.
+
+Conceptually, the pipeline is:
+
+```text
+Major watersheds
+│
+├── Kootenai
+├── Clark Fork
+├── Missouri
+├── Yellowstone
+└── Little Missouri
+       │
+       ▼
+   FlowMet + NHDPlus
+       │
+       ▼
+     COMIDs
+       │
+       ├── COMID 1 ── get_pod_basin()
+       ├── COMID 2 ── get_pod_basin()
+       ├── COMID 3 ── get_pod_basin()
+       └── ...
+              │
+              ▼
+           basins
+              │
+              ├── COMID 1 ── capture_sites_within()
+              ├── COMID 2 ── capture_sites_within()
+              ├── COMID 3 ── capture_sites_within()
+              └── ...
+                     │
+                     ▼
+               combined output
+```
+
+Each COMID branch is independently tracked and cached by `targets`.
+
+This is particularly useful for the NLDI stage because a failed request is associated with a specific COMID branch instead of being hidden inside a larger mapping operation. Likewise, completed `capture_sites_within()` branches do not need to be recalculated when unrelated branches are rerun.
+
+## Single-COMID basin retrieval
+
+Basin retrieval is defined at the level of a single COMID so that `targets` can manage the parallel mapping.
+
+The package helper has the following structure:
+
+
+``` r
+get_pod_basin <- function(comid, crs) {
+
+  basin <- nhdplusTools::get_nldi_basin(
+    list(
+      featureSource = "comid",
+      featureID = as.character(comid)
+    )
+  )
+
+  # Some COMIDs may legitimately return no basin.
+  if (is.null(basin) || nrow(basin) == 0L) {
+    return(NULL)
+  }
+
+  basin <- sf::st_zm(basin)
+
+  basin <- basin[
+    !sf::st_is_empty(basin),
+    ,
+    drop = FALSE
+  ]
+
+  if (nrow(basin) == 0L) {
+    return(NULL)
+  }
+
+  basin %>%
+    dplyr::mutate(
+      comid = as.character(comid)
+    ) %>%
+    sf::st_transform(
+      crs = crs
+    )
+}
+```
+
+Network or service errors are allowed to propagate to `targets`. The corresponding dynamic branch is then recorded as failed rather than silently storing an incomplete result.
+
+The NLDI dynamic target uses `error = "continue"` so other independent branches can continue running if an individual basin request fails.
+
+A subsequent:
+
+```r
+tar_make()
+```
+
+can rerun unfinished or failed work while retaining successfully completed branches.
+
+## Example `_targets.R`
+
+The following shows the pipeline configuration for processing the major Montana basins.
+
+Project-relative paths are used below. Adjust the input paths as needed for the local installation.
+
+
+``` r
+# -------------------------------------------------------------------
+# Packages
+# -------------------------------------------------------------------
+
+library(targets)
 library(tarchetypes)
 library(crew)
+
+
+# -------------------------------------------------------------------
+# Parallel worker pools
+# -------------------------------------------------------------------
+
+# Primary worker pool for local spatial and data-processing operations.
+controller_compute <- crew::crew_controller_local(
+  name = "compute",
+  workers = 88
+)
+
+# Smaller worker pool for remote NLDI requests.
+controller_nldi <- crew::crew_controller_local(
+  name = "nldi",
+  workers = 8
+)
+
+# Combine both pools into a single controller group.
+controller <- crew::crew_controller_group(
+  controller_compute,
+  controller_nldi
+)
+
+
+# -------------------------------------------------------------------
+# Targets options
+# -------------------------------------------------------------------
 
 tar_option_set(
   packages = c(
     "wrqur",
     "nhdplusTools",
-    "tidyverse",
+    "dplyr",
+    "purrr",
     "sf"
   ),
-  controller = crew::crew_controller_local(
-    workers = 96
+
+  controller = controller,
+
+  # Local compute pool is the default for pipeline targets.
+  resources = tar_resources(
+    crew = tar_resources_crew(
+      controller = "compute"
+    )
   )
 )
-```
 
-`future`, `future.callr`, and `furrr` are not required for
-pipeline-level parallelism.
 
-In particular, do **not** use:
+# -------------------------------------------------------------------
+# Major watershed boundaries
+# -------------------------------------------------------------------
 
-``` r
-plan(callr)
-```
+values <- tibble::tribble(
+  ~basin_name,       ~basin_path,
+  "kootenai",        "data/kootenai.shp",
+  "clark_fork",      "data/clark_fork.shp",
+  "missouri",        "data/missouri.shp",
+  "yellowstone",     "data/yellowstone.shp",
+  "little_missouri", "data/little_missouri.shp"
+)
 
-or run the pipeline with:
 
-``` r
-tar_make_future(workers = 50)
-```
+# -------------------------------------------------------------------
+# Pipeline
+# -------------------------------------------------------------------
 
-The `crew` controller now manages parallel execution.
+targets <- tar_map(
+  values = values,
+  names = basin_name,
 
-------------------------------------------------------------------------
+  # -----------------------------------------------------------------
+  # Basin input
+  # -----------------------------------------------------------------
 
-## 3. Parallelize `capture_sites_within()`
+  tar_target(
+    basin,
+    sf::read_sf(basin_path)
+  ),
 
-Instead of running `furrr::future_map()` inside one large target, split
-the basin into individual COMIDs and expose those COMIDs to `targets` as
-dynamic branches.
+  tar_target(
+    basin_crs,
+    sf::st_crs(basin)
+  ),
 
-Replace:
 
-``` r
-tar_target(
-  adding_intersecting_flows,
-  basins %>%
-    split(.$comid) %>%
-    furrr::future_map(
-      ~ capture_sites_within(
-        .x,
-        pou_pod_together_fs_intersection
-      )
+  # -----------------------------------------------------------------
+  # Forest Service administrative boundary
+  # -----------------------------------------------------------------
+
+  tar_target(
+    admin_int,
+    suppressMessages(
+      sf::read_sf("data/admin.shp") %>%
+        sf::st_set_crs(4326) %>%
+        sf::st_transform(crs = basin_crs) %>%
+        sf::st_make_valid() %>%
+        sf::st_intersection(basin) %>%
+        sf::st_union() %>%
+        sf::st_as_sf()
+    )
+  ),
+
+
+  # -----------------------------------------------------------------
+  # FlowMet
+  # -----------------------------------------------------------------
+
+  tar_target(
+    flowmet_intersect,
+    get_flowmet(
+      filter_geom = basin,
+      layer = "mean_summer_flow_historical_hires",
+      local_path = "data/flowmet.gpkg"
     ) %>%
-    dplyr::bind_rows() %>%
-    sf::st_as_sf()
-)
-```
+      sf::read_sf() %>%
+      sf::st_zm() %>%
+      sf::st_cast("LINESTRING") %>%
+      sf::st_set_crs(4326) %>%
+      dplyr::select(
+        maug_hist,
+        comid
+      ) %>%
+      sf::st_transform(crs = basin_crs) %>%
+      sf::st_intersection(basin)
+  ),
 
-with:
 
-``` r
-tar_target(
-  basin_comids,
-  split(
+  # -----------------------------------------------------------------
+  # NHDPlus
+  # -----------------------------------------------------------------
+
+  tar_target(
+    nhdplus,
+    nhdplusTools::get_nhdplus(
+      sf::st_as_sfc(
+        sf::st_bbox(flowmet_intersect)
+      ),
+      streamorder = 2
+    )
+  ),
+
+  tar_target(
+    flowmet_join_nhdplus,
+    flowmet_intersect %>%
+      dplyr::select(
+        maug_hist,
+        comid
+      ) %>%
+      dplyr::left_join(
+        nhdplus %>%
+          sf::st_drop_geometry() %>%
+          dplyr::mutate(
+            comid = as.character(comid)
+          ),
+        by = "comid"
+      )
+  ),
+
+
+  # -----------------------------------------------------------------
+  # Montana water-right PODs
+  # -----------------------------------------------------------------
+
+  tar_target(
+    pou_pod_together,
+    get_mtwr(
+      basin,
+      layer = "WRQS_PODS",
+      local_path = "data/WRQS_Dataset_GDB.gdb"
+    ) %>%
+      sf::read_sf() %>%
+      dplyr::group_by(WRKEY) %>%
+      dplyr::slice(1) %>%
+      dplyr::ungroup()
+  ),
+
+  tar_target(
+    pou_pod_together_sf,
+    date_cleaning(
+      pou_pod_together
+    )
+  ),
+
+
+  # -----------------------------------------------------------------
+  # Stream filtering
+  # -----------------------------------------------------------------
+
+  tar_target(
+    flowmet_grt_strahler_1_order,
+    flowmet_join_nhdplus %>%
+      dplyr::filter(
+        streamorde > 1
+      )
+  ),
+
+  tar_target(
+    crs,
+    sf::st_crs(
+      pou_pod_together_sf
+    )
+  ),
+
+
+  # -----------------------------------------------------------------
+  # COMIDs for basin delineation
+  # -----------------------------------------------------------------
+
+  tar_target(
+    comids,
+    unique(
+      as.character(
+        flowmet_grt_strahler_1_order$comid
+      )
+    )
+  ),
+
+
+  # -----------------------------------------------------------------
+  # NLDI basin retrieval
+  #
+  # Each COMID is an independent dynamic branch.
+  #
+  # These branches are routed to the smaller "nldi" controller rather
+  # than the primary compute pool.
+  # -----------------------------------------------------------------
+
+  tar_target(
+    pod_basin,
+    get_pod_basin(
+      comids,
+      crs
+    ),
+
+    pattern = map(comids),
+    iteration = "list",
+    error = "continue",
+
+    resources = tar_resources(
+      crew = tar_resources_crew(
+        controller = "nldi"
+      )
+    )
+  ),
+
+
+  # -----------------------------------------------------------------
+  # Combine successfully retrieved basins
+  # -----------------------------------------------------------------
+
+  tar_target(
     basins,
-    basins$comid
+    pod_basin %>%
+      purrr::compact() %>%
+      dplyr::bind_rows() %>%
+      sf::st_as_sf()
   ),
-  iteration = "list"
-),
 
-tar_target(
-  captured_sites,
-  capture_sites_within(
+
+  # -----------------------------------------------------------------
+  # Forest Service / private allocation logic
+  # -----------------------------------------------------------------
+
+  tar_target(
+    pou_pod_together_fs_intersection,
+    fs_logic(
+      pou_pod_together_sf,
+      admin_int
+    )
+  ),
+
+
+  # -----------------------------------------------------------------
+  # COMID-level spatial processing
+  # -----------------------------------------------------------------
+
+  tar_target(
     basin_comids,
-    pou_pod_together_fs_intersection
+    split(
+      basins,
+      basins$comid
+    ),
+    iteration = "list"
   ),
-  pattern = map(basin_comids),
-  iteration = "list"
-),
 
-tar_target(
-  adding_intersecting_flows,
-  captured_sites %>%
-    dplyr::bind_rows() %>%
-    sf::st_as_sf()
+
+  # -----------------------------------------------------------------
+  # Capture PODs and allocated flow within each basin
+  #
+  # Each basin is an independent dynamic branch.
+  #
+  # These branches use the primary "compute" worker pool.
+  # -----------------------------------------------------------------
+
+  tar_target(
+    captured_sites,
+    capture_sites_within(
+      basin_comids,
+      pou_pod_together_fs_intersection
+    ),
+
+    pattern = map(basin_comids),
+    iteration = "list"
+  ),
+
+
+  # -----------------------------------------------------------------
+  # Recombine COMID results
+  # -----------------------------------------------------------------
+
+  tar_target(
+    adding_intersecting_flows,
+    captured_sites %>%
+      dplyr::bind_rows() %>%
+      sf::st_as_sf()
+  ),
+
+
+  # -----------------------------------------------------------------
+  # Final FlowMet join and allocation percentages
+  # -----------------------------------------------------------------
+
+  tar_target(
+    pou_pod_together_sf_final_joined,
+    adding_intersecting_flows %>%
+      sf::st_drop_geometry() %>%
+      dplyr::left_join(
+        flowmet_grt_strahler_1_order %>%
+          dplyr::select(
+            comid,
+            maug_hist,
+            gnis_name,
+            qe_08
+          ),
+        by = "comid"
+      ) %>%
+      sf::st_as_sf() %>%
+      dplyr::mutate(
+        intersecting_flow_all_together_percent =
+          (intersecting_flow_all_together / maug_hist) * 100,
+
+        intersecting_flow_fs_percent =
+          (intersecting_flow_fs / maug_hist) * 100,
+
+        intersecting_flow_private_percent =
+          (intersecting_flow_private / maug_hist) * 100
+      )
+  )
 )
+
+list(targets)
 ```
 
-Because this code occurs inside the existing `tar_map()`, each major
-watershed still has its own pipeline while the individual COMIDs within
-each watershed become dynamic branches.
+## Parallel execution architecture
 
-Conceptually:
+With the configuration above, `targets` manages both worker pools:
 
-``` text
-Kootenai
-   ├── COMID 1 ── capture_sites_within()
-   ├── COMID 2 ── capture_sites_within()
-   ├── COMID 3 ── capture_sites_within()
-   └── ...
-
-Clark Fork
-   ├── COMID 1 ── capture_sites_within()
-   ├── COMID 2 ── capture_sites_within()
-   └── ...
-
-Missouri
-   ├── COMID 1 ── capture_sites_within()
-   └── ...
-
-Yellowstone
-   └── ...
-
-Little Missouri
-   └── ...
+```text
+                       tar_make()
+                           │
+                           ▼
+                    targets scheduler
+                           │
+              ┌────────────┴────────────┐
+              │                         │
+              ▼                         ▼
+       NLDI controller          Compute controller
+          8 workers                88 workers
+              │                         │
+              ▼                         ▼
+       get_pod_basin()        Pipeline computation
+       one COMID each                  +
+                                  capture_sites_within()
+                                   one COMID each
 ```
 
-`targets` can then schedule up to 96 ready COMID branches
-simultaneously.
+The maximum configured worker count is therefore:
 
-------------------------------------------------------------------------
+```text
+8 + 88 = 96 workers
+```
 
-## 4. Run the pipeline
+on a system with 100 available CPU cores.
 
-From the project directory:
+The remaining cores provide capacity for the primary R process, the `targets` scheduler, operating-system activity, and filesystem overhead.
 
-``` bash
+`crew` scales each controller up to its configured worker limit according to the amount of work available. If only a small number of branches are ready, fewer workers are used.
+
+## Why COMIDs are dynamic targets
+
+Both basin retrieval and POD allocation are naturally independent at the COMID level.
+
+For basin retrieval:
+
+```text
+COMID
+  │
+  └── get_pod_basin()
+```
+
+For water-right summarization:
+
+```text
+COMID basin
+  │
+  └── capture_sites_within()
+```
+
+Exposing these operations to `targets` rather than running an internal parallel map provides several benefits:
+
+* individual COMIDs are independently cached;
+* completed COMIDs remain complete if the workflow is interrupted;
+* failed NLDI requests are visible as failed branches;
+* failed work can be rerun without repeating successful branches;
+* `targets` controls the global worker allocation;
+* independent watersheds and COMIDs can run concurrently when dependencies allow; and
+* worker pools can be matched to different types of work.
+
+This keeps parallel execution at the pipeline level rather than creating nested worker pools inside individual functions.
+
+## Monitoring parallel execution
+
+While the workflow is running, standard system tools can be used to monitor CPU and memory utilization.
+
+For example:
+
+```bash
+htop
+```
+
+Within R, pipeline status can be inspected with:
+
+```r
+tar_progress()
+```
+
+After the run, worker usage can be summarized with:
+
+```r
+tar_crew()
+```
+
+Because the pipeline contains dynamic targets, individual branch progress can also be inspected when debugging COMID-level failures.
+
+## Running the full workflow
+
+From the project root:
+
+```bash
 Rscript -e 'targets::tar_make()'
 ```
 
-Or interactively from R:
+or from an interactive R session:
 
-``` r
+```r
 library(targets)
 
 tar_make()
 ```
 
-Do **not** use:
+Completed branches are stored by `targets`, so interrupted or partially completed pipelines can generally be resumed by running:
 
-``` r
-tar_make_future()
-```
-
-Parallel execution is controlled by the `crew` controller defined in
-`_targets.R`.
-
-------------------------------------------------------------------------
-
-## 5. Inspect the pipeline before running
-
-To visualize the target dependency graph:
-
-``` r
-targets::tar_visnetwork()
-```
-
-To list targets:
-
-``` r
-targets::tar_manifest()
-```
-
-To see which targets are currently outdated and need to run:
-
-``` r
-targets::tar_outdated()
-```
-
-------------------------------------------------------------------------
-
-## 6. Re-running the pipeline
-
-One major advantage of making `capture_sites_within()` a dynamic target
-is that each COMID is independently cached.
-
-If the pipeline stops partway through, simply run:
-
-``` r
+```r
 tar_make()
 ```
 
 again.
 
-Completed branches remain cached and `targets` will continue with
-branches that still need to run.
+If an NLDI branch fails because of a temporary network or service issue, other independent branches can continue because the basin target uses:
 
-Similarly, if an upstream dependency changes, `targets` determines which
-COMID branches need to be rebuilt.
-
-------------------------------------------------------------------------
-
-## Worker count
-
-Default:
-
-``` r
-workers = 96
+```r
+error = "continue"
 ```
 
-If memory or filesystem I/O becomes limiting, reduce the worker count:
-
-``` r
-controller = crew::crew_controller_local(
-  workers = 64
-)
-```
-
-or:
-
-``` r
-controller = crew::crew_controller_local(
-  workers = 80
-)
-```
-
-For `sf` operations, increasing CPU workers can substantially increase
-memory use because multiple workers may simultaneously load or operate
-on large spatial objects.
-
-A good initial test is therefore:
-
-``` r
-workers = 96
-```
-
-while monitoring CPU utilization, RAM, and I/O.
-
-If all cores remain busy and memory usage is acceptable, retain 96
-workers. If the node spends substantial time in I/O wait or memory
-pressure increases, reduce the number of workers.
-
-------------------------------------------------------------------------
-
-## Full execution
-
-Once `_targets.R` has been configured:
-
-``` bash
-cd /path/to/project
-
-Rscript -e 'targets::tar_make()'
-```
-
-The intended parallelization hierarchy is:
-
-``` text
-targets
-   │
-   ├── major watersheds
-   │
-   └── COMID dynamic branches
-          │
-          └── capture_sites_within()
-                 │
-                 └── up to 96 concurrent workers
-```
-
-`targets`/`crew` should control the worker pool globally. Avoid starting
-additional `future`, `furrr`, or other nested parallel worker pools
-inside `capture_sites_within()`.
-
-## References
-
-Oestreich, B.L. (2023). QUANTIFYING WATER SUPPLY AND DEMAND ACROSS
-NATIONAL FOREST SYSTEM LANDS WITHIN THE CLARK FORK RIVER WATERSHED,
-MONTANA. Montana State University.
+A subsequent run can then attempt the unfinished work while retaining successfully completed COMID branches.
