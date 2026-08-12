@@ -4,6 +4,8 @@ output: github_document
 always_allow_html: true
 ---
 
+<!-- README.md is generated from README.Rmd. Without Pandoc, run Rscript scripts/render_readme.R. -->
+
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
@@ -13,9 +15,9 @@ knitr::opts_chunk$set(
 )
 ```
 
-# wrqur
+# WateRAT
 
-Water Rights Quantification/Uses for R (`wrqur`) provides methods for retrieving and analyzing water allocation and modeled streamflow data.
+Water Rights Allocation Tool for R (`WateRAT`) provides methods for retrieving and analyzing water allocation and modeled streamflow data.
 
 The package uses Montana [Points of Diversion (POD)](https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip) and [FlowMet](https://www.fs.usda.gov/rm/boise/AWAE/projects/modeled_stream_flow_metrics.shtml) streamflow outputs to quantify water allocations relative to modeled August streamflow.
 
@@ -25,11 +27,11 @@ The package also includes a [{targets}](https://books.ropensci.org/targets/) pip
 
 ## Installation
 
-Install the development version of `wrqur` from GitHub with:
+Install the development version of `WateRAT` from GitHub with:
 
 ```r
 # install.packages("devtools")
-devtools::install_github("soilwaterfish/wrqur")
+devtools::install_github("soilwaterfish/WateRAT")
 ```
 
 To run the development pipeline, install the workflow packages if needed:
@@ -42,7 +44,7 @@ install.packages(c(
 ))
 ```
 
-The remaining spatial and data-processing dependencies are installed with `wrqur` or can be installed separately if needed.
+The remaining spatial and data-processing dependencies are installed with `WateRAT` or can be installed separately if needed.
 
 ## Methods
 
@@ -298,7 +300,7 @@ controller <- crew::crew_controller_group(
 
 tar_option_set(
   packages = c(
-    "wrqur",
+    "WateRAT",
     "nhdplusTools",
     "dplyr",
     "purrr",

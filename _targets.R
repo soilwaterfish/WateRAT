@@ -24,7 +24,7 @@ controller <- crew::crew_controller_group(
 
 tar_option_set(
   packages = c(
-    "wrqur",
+    "WateRAT",
     "nhdplusTools",
     "dplyr",
     "purrr",
@@ -53,7 +53,7 @@ tar_target(basin, sf::read_sf(values)),
 
 tar_target(basin_crs, sf::st_crs(basin)),
 
-tar_target(admin_int, suppressMessages(sf::read_sf('/home/josh.erickson/projects/wrqur/data/admin.shp')%>%
+tar_target(admin_int, suppressMessages(sf::read_sf(file.path("data", "admin.shp")) %>%
                                          sf::st_set_crs(4326) %>%
                                          sf::st_transform(crs = basin_crs) %>%
                                          sf::st_make_valid() %>%
@@ -63,7 +63,7 @@ tar_target(admin_int, suppressMessages(sf::read_sf('/home/josh.erickson/projects
 
 tar_target(flowmet_intersect, get_flowmet(filter_geom = basin,
                                           layer = 'mean_summer_flow_historical_hires',
-                                          local_path = '/home/josh.erickson/projects/wrqur/data/flowmet.gpkg')  %>%
+                                          local_path = file.path("data", "flowmet.gpkg"))  %>%
              sf::read_sf()%>%
              sf::st_zm() %>%
              sf::st_cast('LINESTRING') %>%
@@ -80,13 +80,13 @@ tar_target(flowmet_join_nhdplus, flowmet_intersect %>% dplyr::select(maug_hist, 
                        dplyr::mutate(comid = as.character(comid)), by = c('comid' = 'comid'))
 ),
 
-# tar_target(pou_pod_together, get_mtwr(basin, layer = 'WR1POU', local_path =  '/home/josh.erickson/projects/wrqur/data/WRQS_Dataset_GDB.gdb') %>%
+# tar_target(pou_pod_together, get_mtwr(basin, layer = 'WR1POU', local_path = file.path("data", "WRQS_Dataset_GDB.gdb")) %>%
 #              sf::read_sf() %>%
 #              dplyr::group_by(WRKEY) %>%
 #              dplyr::slice(1) %>%
 #              dplyr::ungroup()),
 
-tar_target(pou_pod_together, get_mtwr(basin, layer = 'WRQS_PODS', local_path =  "/home/josh.erickson/projects/wrqur/data/WRQS_Dataset_GDB.gdb") %>%
+tar_target(pou_pod_together, get_mtwr(basin, layer = 'WRQS_PODS', local_path = file.path("data", "WRQS_Dataset_GDB.gdb")) %>%
              sf::read_sf() %>%
              dplyr::group_by(WRKEY) %>%
              dplyr::slice(1) %>%
@@ -177,8 +177,6 @@ tar_target(pou_pod_together_sf_final_joined, adding_intersecting_flows %>%
 
 
 list(targets)
-
-
 
 
 
