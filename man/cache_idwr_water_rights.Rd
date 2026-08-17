@@ -8,7 +8,7 @@ cache_idwr_water_rights(
   local_path,
   filter_geom,
   cache_path,
-  exclude_source = "GROUND WATER",
+  exclude_source = .idwr_excluded_sources,
   layer = "water_rights",
   retries = 2L,
   month = 8L,

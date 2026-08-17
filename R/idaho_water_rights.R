@@ -1,3 +1,8 @@
+# Source types excluded from the standard Idaho surface-water allocation input.
+.idwr_excluded_sources <- c(
+  "GROUND WATER", "WASTE DITCH", "WASTE WATER", "WASTEWATER", "SEEPAGE"
+)
+
 #' Get filtered Idaho points of diversion
 #'
 #' Read the Idaho Department of Water Resources `PODRight` layer and apply
@@ -12,14 +17,15 @@
 #' @param status Optional status name or vector of status names. Matching is
 #'   case-insensitive.
 #' @param exclude_source Optional source name or vector of source names to
-#'   exclude. Matching is case-insensitive.
+#'   exclude. Defaults to groundwater, waste-ditch/wastewater, and seepage
+#'   records. Matching is case-insensitive.
 #' @param exclude_status Optional status name or vector of status names to
 #'   exclude. Matching is case-insensitive.
 #' @param layer Layer name in `local_path`.
 #' @return An `sf` object of filtered PODs.
 #' @export
 get_idwr_pods <- function(local_path, filter_geom = NULL, source = NULL,
-                          status = "Active", exclude_source = NULL,
+                          status = "Active", exclude_source = .idwr_excluded_sources,
                           exclude_status = NULL, layer = "PODRight") {
   pods <- sf::read_sf(local_path, layer = layer, quiet = TRUE)
 
@@ -86,6 +92,84 @@ get_idwr_pods <- function(local_path, filter_geom = NULL, source = NULL,
   )
 }
 
+.idwr_conditions_table <- function(html) {
+  tables <- rvest::html_elements(html, "table")
+  parsed <- lapply(tables, rvest::html_table, convert = FALSE)
+  is_conditions <- vapply(
+    parsed,
+    function(table) {
+      names_lower <- tolower(trimws(names(table)))
+      "code" %in% names_lower && any(names_lower %in% c("conditions", "condtions"))
+    },
+    logical(1)
+  )
+  if (!any(is_conditions)) {
+    return(data.frame(
+      condition_code = character(), condition_text = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+  conditions <- parsed[[which(is_conditions)[1L]]]
+  names_lower <- tolower(trimws(names(conditions)))
+  code_column <- names(conditions)[match("code", names_lower)]
+  text_column <- names(conditions)[match(
+    TRUE, names_lower %in% c("conditions", "condtions")
+  )]
+  condition_code <- trimws(as.character(conditions[[code_column]]))
+  condition_code[!nzchar(condition_code)] <- NA_character_
+  data.frame(
+    condition_code = condition_code,
+    condition_text = trimws(as.character(conditions[[text_column]])),
+    stringsAsFactors = FALSE
+  )
+}
+
+.idwr_scrape_report_details <- function(report_urls, retries) {
+  report_urls <- unique(stats::na.omit(report_urls))
+  details <- lapply(report_urls, function(report_url) {
+    tryCatch({
+      response <- httr2::request(report_url) |>
+        httr2::req_retry(max_tries = retries + 1L) |>
+        httr2::req_perform()
+      html <- rvest::read_html(httr2::resp_body_string(response))
+      uses <- .idwr_water_uses_table(html)
+      if (!nrow(uses)) uses <- uses[1L, , drop = FALSE]
+      uses$WRReport <- report_url
+      uses$scrape_error <- NA_character_
+      conditions <- .idwr_conditions_table(html)
+      if (nrow(conditions)) {
+        conditions$WRReport <- report_url
+        conditions$scrape_error <- NA_character_
+      } else {
+        conditions <- data.frame(
+          condition_code = character(), condition_text = character(),
+          WRReport = character(), scrape_error = character(),
+          stringsAsFactors = FALSE
+        )
+      }
+      list(uses = uses, conditions = conditions)
+    }, error = function(error) {
+      list(
+        uses = data.frame(
+          beneficial_use = NA_character_, from = NA_character_, to = NA_character_,
+          diversion_rate = NA_real_, diversion_rate_unit = NA_character_,
+          volume = NA_real_, vol_unit = NA_character_, WRReport = report_url,
+          scrape_error = conditionMessage(error), stringsAsFactors = FALSE
+        ),
+        conditions = data.frame(
+          condition_code = NA_character_, condition_text = NA_character_,
+          WRReport = report_url, scrape_error = conditionMessage(error),
+          stringsAsFactors = FALSE
+        )
+      )
+    })
+  })
+  list(
+    uses = do.call(rbind, lapply(details, `[[`, "uses")),
+    conditions = do.call(rbind, lapply(details, `[[`, "conditions"))
+  )
+}
+
 #' Scrape Water Uses from Idaho water-right reports
 #'
 #' Extract the `Water Uses` table from IDWR `WRReport` URLs. The report's
@@ -98,30 +182,22 @@ get_idwr_pods <- function(local_path, filter_geom = NULL, source = NULL,
 #'   numeric `diversion_rate`/`volume` and their units.
 #' @export
 scrape_idwr_water_uses <- function(report_urls, retries = 2L) {
-  report_urls <- unique(stats::na.omit(report_urls))
-  results <- lapply(report_urls, function(report_url) {
-    tryCatch({
-      response <- httr2::request(report_url) |>
-        httr2::req_retry(max_tries = retries + 1L) |>
-        httr2::req_perform()
-      html <- rvest::read_html(httr2::resp_body_string(response))
-      uses <- .idwr_water_uses_table(html)
-      if (!nrow(uses)) {
-        uses <- uses[1L, , drop = FALSE]
-      }
-      uses$WRReport <- report_url
-      uses$scrape_error <- NA_character_
-      uses
-    }, error = function(error) {
-      data.frame(
-        beneficial_use = NA_character_, from = NA_character_, to = NA_character_,
-        diversion_rate = NA_real_, diversion_rate_unit = NA_character_,
-        volume = NA_real_, vol_unit = NA_character_, WRReport = report_url,
-        scrape_error = conditionMessage(error), stringsAsFactors = FALSE
-      )
-    })
-  })
-  do.call(rbind, results)
+  .idwr_scrape_report_details(report_urls, retries)$uses
+}
+
+#' Scrape Conditions from Idaho water-right reports
+#'
+#' Extract the report `Conditions` table as one row per condition code. This
+#' normalized output is intended for EDA and audit, rather than duplicating a
+#' POD once for every condition.
+#'
+#' @param report_urls A character vector of `WRReport` URLs.
+#' @param retries Number of retry attempts for a temporary request failure.
+#' @return A data frame with `condition_code`, `condition_text`, `WRReport`,
+#'   and `scrape_error`.
+#' @export
+scrape_idwr_conditions <- function(report_urls, retries = 2L) {
+  .idwr_scrape_report_details(report_urls, retries)$conditions
 }
 
 #' Expand Idaho PODs by Water Use
@@ -139,8 +215,18 @@ expand_idwr_pods_by_use <- function(pods, retries = 2L) {
   if (!inherits(pods, "sf") || !"WRReport" %in% names(pods)) {
     stop("`pods` must be an sf object containing a `WRReport` column.", call. = FALSE)
   }
-  uses <- scrape_idwr_water_uses(pods$WRReport, retries = retries)
-  dplyr::left_join(pods, uses, by = "WRReport")
+  details <- .idwr_scrape_report_details(pods$WRReport, retries = retries)
+  condition_summary <- details$conditions |>
+    dplyr::filter(!is.na(.data$condition_code) | !is.na(.data$condition_text)) |>
+    dplyr::group_by(.data$WRReport) |>
+    dplyr::summarise(
+      condition_codes = paste(stats::na.omit(.data$condition_code), collapse = "; "),
+      condition_text = paste(.data$condition_text, collapse = "\n\n"),
+      .groups = "drop"
+    )
+  pods |>
+    dplyr::left_join(details$uses, by = "WRReport") |>
+    dplyr::left_join(condition_summary, by = "WRReport")
 }
 
 #' Standardize Idaho water rights
@@ -164,6 +250,12 @@ standardize_idwr_water_rights <- function(pods_by_use) {
   use_number <- ave(seq_len(nrow(pods_by_use)), pods_by_use$PointOfDiversionID,
                     FUN = seq_along)
   rate_unit <- toupper(trimws(pods_by_use$diversion_rate_unit))
+  idwr_uses <- if ("Uses" %in% names(pods_by_use)) as.character(pods_by_use$Uses) else NA_character_
+  condition_codes <- if ("condition_codes" %in% names(pods_by_use)) pods_by_use$condition_codes else NA_character_
+  condition_text <- if ("condition_text" %in% names(pods_by_use)) pods_by_use$condition_text else NA_character_
+  instream_pattern <- "INSTREAM|MINIMUM[[:space:]]+STREAM[[:space:]]+FLOW"
+  is_instream <- grepl(instream_pattern, dplyr::coalesce(pods_by_use$beneficial_use, ""), ignore.case = TRUE) |
+    grepl(instream_pattern, dplyr::coalesce(idwr_uses, ""), ignore.case = TRUE)
   result <- dplyr::transmute(
     pods_by_use,
     state = "ID",
@@ -180,8 +272,11 @@ standardize_idwr_water_rights <- function(pods_by_use) {
     diversion_rate_unit = .data$diversion_rate_unit,
     volume = as.numeric(.data$volume),
     volume_unit = .data$vol_unit,
-    is_instream = grepl("INSTREAM", .data$beneficial_use, ignore.case = TRUE),
-    report_url = .data$WRReport
+    is_instream = is_instream,
+    report_url = .data$WRReport,
+    idwr_uses = idwr_uses,
+    condition_codes = condition_codes,
+    condition_text = condition_text
   )
   validate_water_rights(result)
   result
@@ -207,7 +302,7 @@ standardize_idwr_water_rights <- function(pods_by_use) {
 #' @return `cache_path`, invisibly.
 #' @export
 cache_idwr_water_rights <- function(local_path, filter_geom, cache_path,
-                                    exclude_source = "GROUND WATER",
+                                    exclude_source = .idwr_excluded_sources,
                                     layer = "water_rights", retries = 2L,
                                     month = 8L, include_missing_period = TRUE) {
   water_rights <- get_idwr_pods(

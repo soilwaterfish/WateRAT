@@ -9,7 +9,7 @@ get_idwr_pods(
   filter_geom = NULL,
   source = NULL,
   status = "Active",
-  exclude_source = NULL,
+  exclude_source = .idwr_excluded_sources,
   exclude_status = NULL,
   layer = "PODRight"
 )
@@ -26,7 +26,8 @@ layer.}
 case-insensitive.}
 
 \item{exclude_source}{Optional source name or vector of source names to
-exclude. Matching is case-insensitive.}
+exclude. Defaults to groundwater, waste-ditch/wastewater, and seepage
+records. Matching is case-insensitive.}
 
 \item{exclude_status}{Optional status name or vector of status names to
 exclude. Matching is case-insensitive.}
