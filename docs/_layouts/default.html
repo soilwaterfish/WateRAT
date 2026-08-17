@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="{{ site.description }}">
+    <title>{% if page.title %}{{ page.title }} · {% endif %}{{ site.title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="{{ '/assets/css/site.css' | relative_url }}" rel="stylesheet">
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-waterat sticky-top border-bottom border-light border-opacity-25">
+      <div class="container-fluid px-lg-4">
+        <a class="navbar-brand fw-semibold" href="{{ '/' | relative_url }}">Wate<span>RAT</span></a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#docsNavigation" aria-controls="docsNavigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="d-none d-lg-flex align-items-center ms-auto small text-white-50">
+          Water-right allocation analysis
+        </div>
+      </div>
+    </nav>
+
+    <div class="offcanvas-lg offcanvas-start" tabindex="-1" id="docsNavigation" aria-labelledby="docsNavigationLabel">
+      <div class="offcanvas-header border-bottom">
+        <h2 class="offcanvas-title fs-5" id="docsNavigationLabel">Documentation</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+      </div>
+      <div class="offcanvas-body p-0">
+        <aside class="docs-sidebar p-3">
+          <label class="visually-hidden" for="nav-filter">Filter pages</label>
+          <input class="form-control form-control-sm mb-3" id="nav-filter" type="search" placeholder="Filter pages" autocomplete="off">
+          <nav class="nav nav-pills flex-column gap-1" aria-label="Documentation">
+            <a class="nav-link" data-nav-search="home overview" href="{{ '/' | relative_url }}">Overview</a>
+            <p class="nav-heading">Get started</p>
+            <a class="nav-link" data-nav-search="setup install local data" href="{{ '/setup/' | relative_url }}">Setup and local data</a>
+            <a class="nav-link" data-nav-search="filters montana idaho ownership" href="{{ '/filters/' | relative_url }}">State adapters and filtering</a>
+            <a class="nav-link" data-nav-search="schema contract fields records" href="{{ '/schema/' | relative_url }}">Canonical schema</a>
+            <p class="nav-heading">Workflow</p>
+            <a class="nav-link" data-nav-search="targets crew pipeline smoke" href="{{ '/targets/' | relative_url }}">Targets framework</a>
+            <a class="nav-link" data-nav-search="nldi comid nhdplus accumulation routing" href="{{ '/network/' | relative_url }}">Network accumulation</a>
+            <p class="nav-heading">Reference</p>
+            <a class="nav-link" data-nav-search="gpkg geopackage output fields final join" href="{{ '/output-gpkg/' | relative_url }}">Final GeoPackage contract</a>
+            <a class="nav-link" data-nav-search="github repository source code" href="https://github.com/soilwaterfish/WateRAT">Repository ↗</a>
+          </nav>
+        </aside>
+      </div>
+    </div>
+
+    <main class="docs-main">
+      <div class="container-xl py-4 py-lg-5 px-lg-5">
+        <div class="d-flex align-items-center gap-2 text-secondary small mb-3">
+          <a class="link-secondary text-decoration-none" href="{{ '/' | relative_url }}">Docs</a>
+          <span>/</span>
+          <span>{{ page.title | default: site.title }}</span>
+        </div>
+        <article class="docs-content">
+          {{ content }}
+        </article>
+        <footer class="border-top mt-5 pt-3 small text-secondary">
+          WateRAT documentation · <a href="https://github.com/soilwaterfish/WateRAT">Source repository</a>
+        </footer>
+      </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5sLZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="{{ '/assets/js/site.js' | relative_url }}"></script>
+  </body>
+</html>

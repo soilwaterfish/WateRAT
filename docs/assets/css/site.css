@@ -1,0 +1,124 @@
+:root {
+  --waterat-navy: #123b4a;
+  --waterat-teal: #0c6b70;
+  --waterat-sand: #f6f4ee;
+  --sidebar-width: 18rem;
+}
+
+body {
+  background: var(--waterat-sand);
+  color: #23313a;
+}
+
+.bg-waterat {
+  background: linear-gradient(105deg, var(--waterat-navy), var(--waterat-teal));
+}
+
+.navbar-brand span {
+  color: #9ee0cf;
+}
+
+.docs-sidebar {
+  background: #fff;
+  min-height: calc(100vh - 57px);
+}
+
+.nav-heading {
+  color: #6c757d;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  margin: 1.15rem .75rem .3rem;
+  text-transform: uppercase;
+}
+
+.docs-sidebar .nav-link {
+  border-radius: .45rem;
+  color: #334a56;
+  font-size: .92rem;
+  padding: .48rem .75rem;
+}
+
+.docs-sidebar .nav-link:hover,
+.docs-sidebar .nav-link.active {
+  background: #d9f0ea;
+  color: #075f60;
+  font-weight: 600;
+}
+
+.docs-main {
+  min-height: calc(100vh - 57px);
+}
+
+.docs-content {
+  background: #fff;
+  border: 1px solid #e2e6e7;
+  border-radius: .75rem;
+  box-shadow: 0 .25rem 1.25rem rgb(20 45 55 / 4%);
+  padding: clamp(1.5rem, 3vw, 3rem);
+}
+
+.docs-content h1 {
+  color: var(--waterat-navy);
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+}
+
+.docs-content h2 {
+  border-bottom: 1px solid #dce3e4;
+  color: var(--waterat-teal);
+  font-size: 1.45rem;
+  margin-top: 2.4rem;
+  padding-bottom: .45rem;
+}
+
+.docs-content h3 {
+  color: #234e5f;
+  font-size: 1.12rem;
+  margin-top: 1.75rem;
+}
+
+.docs-content table {
+  --bs-table-bg: transparent;
+  border: 1px solid #dce3e4;
+  font-size: .92rem;
+}
+
+.docs-content th {
+  background: #e9f4f2;
+  color: var(--waterat-navy);
+}
+
+.docs-content th,
+.docs-content td {
+  padding: .65rem .75rem;
+}
+
+.docs-content pre {
+  background: #172b36;
+  border-radius: .5rem;
+  color: #e9f4f2;
+  padding: 1rem;
+}
+
+.docs-content code {
+  color: #a3355f;
+}
+
+.docs-content pre code {
+  color: inherit;
+}
+
+@media (min-width: 992px) {
+  .offcanvas-lg {
+    display: block;
+    position: fixed;
+    top: 57px;
+    bottom: 0;
+    width: var(--sidebar-width);
+  }
+
+  .docs-main {
+    margin-left: var(--sidebar-width);
+  }
+}
