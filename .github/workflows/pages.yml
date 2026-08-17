@@ -3,7 +3,7 @@ name: Deploy documentation to GitHub Pages
 on:
   push:
     branches:
-      - network-accumulation
+      - main
     paths:
       - docs/**
       - .github/workflows/pages.yml
