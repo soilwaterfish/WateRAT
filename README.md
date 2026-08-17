@@ -435,7 +435,6 @@ targets <- tar_map(
       layer = "WRQS_PODS",
       local_path = "data/WRQS_Dataset_GDB.gdb"
     ) %>%
-      sf::read_sf() %>%
       dplyr::group_by(WRKEY) %>%
       dplyr::slice(1) %>%
       dplyr::ungroup()
@@ -752,7 +751,6 @@ old_pods <- get_mtwr(
   local_path = "data/WRQS_Dataset_GDB.gdb",
   active_only = FALSE
 ) |>
-  sf::read_sf() |>
   water_right_snapshot()
 
 write_water_right_snapshot(old_pods, "data/snapshots/pods_previous.gpkg")
@@ -769,7 +767,6 @@ current <- get_mtwr(
   local_path = "data/WRQS_Dataset_GDB.gdb",
   active_only = FALSE
 ) |>
-  sf::read_sf() |>
   water_right_snapshot()
 
 changes <- detect_water_right_changes(previous, current)

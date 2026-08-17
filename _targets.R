@@ -7,14 +7,23 @@ library(targets)
 library(tarchetypes)
 library(crew)
 
+# Set WATERAT_RUN_MODE=smoke only after `prepare_smoke_test()` creates the
+# ignored smoke inputs. Full mode remains the default.
+run_mode <- Sys.getenv("WATERAT_RUN_MODE", unset = "full")
+if (!run_mode %in% c("full", "smoke")) {
+  stop("WATERAT_RUN_MODE must be `full` or `smoke`.", call. = FALSE)
+}
+compute_workers <- if (run_mode == "smoke") 2L else 88L
+nldi_workers <- if (run_mode == "smoke") 2L else 8L
+
 controller_compute <- crew::crew_controller_local(
   name = "compute",
-  workers = 88
+  workers = compute_workers
 )
 
 controller_nldi <- crew::crew_controller_local(
   name = "nldi",
-  workers = 8
+  workers = nldi_workers
 )
 
 controller <- crew::crew_controller_group(
@@ -38,30 +47,52 @@ tar_option_set(
   )
 )
 
-### This `basin_entry` will depend on the user defined watershed boundary.
-values = dplyr::tibble(values = c("data/kootenai.shp",
-                                  "data/clark_fork.shp",
-                                  "data/missouri.shp",
-                                  "data/yellowstone.shp",
-                                  "data/little_missouri.shp"
-                                  ))
+# One row per state. Add states here only after a state adapter returns the
+# canonical schema from `water_right_schema()`.
+state_values <- if (run_mode == "smoke") {
+  dplyr::tibble(
+    state_code = c("MT", "ID"),
+    water_right_path = c(
+      "data/WRQS_Dataset_GDB.gdb",
+      "data/_ags_data25175638F3334C56901BED08795AB38A.gdb"
+    ),
+    canonical_cache_path = c(NA_character_, "data/idaho_water_rights_smoke.gpkg"),
+    boundary_path = "data/smoke_states.gpkg"
+  )
+} else {
+  dplyr::tibble(
+    state_code = c("MT", "ID"),
+    water_right_path = c(
+      "data/WRQS_Dataset_GDB.gdb",
+      "data/_ags_data25175638F3334C56901BED08795AB38A.gdb"
+    ),
+    canonical_cache_path = c(NA_character_, "data/idaho_water_rights.gpkg"),
+    boundary_path = "data/states.gpkg"
+  )
+}
+
 targets <- tar_map(
 
-values = values,
+values = state_values,
 
-tar_target(basin, sf::read_sf(values)),
+tar_target(
+  state_boundary,
+    sf::read_sf(boundary_path, layer = "states") %>%
+    dplyr::filter(.data$state_abbr == state_code)
+),
 
-tar_target(basin_crs, sf::st_crs(basin)),
+tar_target(state_crs, sf::st_crs(state_boundary)),
 
 tar_target(admin_int, suppressMessages(sf::read_sf(file.path("data", "admin.shp")) %>%
                                          sf::st_set_crs(4326) %>%
-                                         sf::st_transform(crs = basin_crs) %>%
+                                         sf::st_transform(crs = state_crs) %>%
                                          sf::st_make_valid() %>%
-                                         sf::st_intersection(basin) %>%
+                                         dplyr::filter(toupper(ownerclass) == "USDA FOREST SERVICE") %>%
+                                         sf::st_intersection(state_boundary) %>%
                                          sf::st_union() %>%
                                          sf::st_as_sf())),
 
-tar_target(flowmet_intersect, get_flowmet(filter_geom = basin,
+tar_target(flowmet_intersect, get_flowmet(filter_geom = state_boundary,
                                           layer = 'mean_summer_flow_historical_hires',
                                           local_path = file.path("data", "flowmet.gpkg"))  %>%
              sf::read_sf()%>%
@@ -69,10 +100,13 @@ tar_target(flowmet_intersect, get_flowmet(filter_geom = basin,
              sf::st_cast('LINESTRING') %>%
              sf::st_set_crs(4326) %>%
              dplyr::select(c("maug_hist", "comid")) %>%
-                                      sf::st_transform(crs = basin_crs) %>%
-                                      sf::st_intersection(basin)),
+                                      sf::st_transform(crs = state_crs) %>%
+                                      sf::st_intersection(state_boundary)),
 
-tar_target(nhdplus, nhdplusTools::get_nhdplus(sf::st_as_sfc(sf::st_bbox(flowmet_intersect)), streamorder = 2)),
+tar_target(
+  nhdplus,
+  nhdplusTools::get_nhdplus(sf::st_as_sfc(sf::st_bbox(flowmet_intersect)))
+),
 
 tar_target(flowmet_join_nhdplus, flowmet_intersect %>% dplyr::select(maug_hist, comid) %>%
     dplyr::left_join(nhdplus %>%
@@ -80,29 +114,33 @@ tar_target(flowmet_join_nhdplus, flowmet_intersect %>% dplyr::select(maug_hist, 
                        dplyr::mutate(comid = as.character(comid)), by = c('comid' = 'comid'))
 ),
 
-# tar_target(pou_pod_together, get_mtwr(basin, layer = 'WR1POU', local_path = file.path("data", "WRQS_Dataset_GDB.gdb")) %>%
-#              sf::read_sf() %>%
-#              dplyr::group_by(WRKEY) %>%
-#              dplyr::slice(1) %>%
-#              dplyr::ungroup()),
-
-tar_target(pou_pod_together, get_mtwr(basin, layer = 'WRQS_PODS', local_path = file.path("data", "WRQS_Dataset_GDB.gdb")) %>%
-             sf::read_sf() %>%
-             dplyr::group_by(WRKEY) %>%
-             dplyr::slice(1) %>%
-             dplyr::ungroup()),
-
-# tar_target(pou_pod_together, suppressMessages(pod %>%
-#                                                   dplyr::left_join(pou %>%
-#                                                                      sf::st_drop_geometry() %>%
-#                                                                      dplyr::select(c("WRKEY", "PURPOSE", "IRRTYPE", "MAXACRES", "FLWRTGPM", "FLWRTCFS", "VOL", "ACREAGE"))))
-# ),
-
-tar_target(pou_pod_together_sf, date_cleaning(pou_pod_together)),
+tar_target(
+  state_water_rights,
+  if (state_code == "ID") {
+    if (!file.exists(canonical_cache_path)) {
+      stop(
+        "Idaho canonical cache is missing: ", canonical_cache_path,
+        ". Build it explicitly with `cache_idwr_water_rights()` before tar_make().",
+        call. = FALSE
+      )
+    }
+    cached_water_rights <- sf::read_sf(
+      canonical_cache_path, layer = "water_rights", quiet = TRUE
+    )
+    validate_water_rights(cached_water_rights)
+    cached_water_rights
+  } else {
+    get_state_water_rights(
+      state = state_code,
+      filter_geom = state_boundary,
+      local_path = water_right_path
+    )
+  }
+),
 
 tar_target(flowmet_grt_strahler_1_order, flowmet_join_nhdplus %>% dplyr::filter(streamorde > 1)),
 
-tar_target(crs, sf::st_crs(pou_pod_together_sf)),
+tar_target(crs, sf::st_crs(state_water_rights)),
 
 tar_target(
   comids,
@@ -137,7 +175,7 @@ tar_target(
     sf::st_as_sf()
 ),
 
-tar_target(pou_pod_together_fs_intersection, fs_logic(pou_pod_together_sf, admin_int)),
+tar_target(state_water_rights_fs_intersection, fs_logic(state_water_rights, admin_int)),
 
 tar_target(
   basin_comids,
@@ -152,7 +190,7 @@ tar_target(
   captured_sites,
   capture_sites_within(
     basin_comids,
-    pou_pod_together_fs_intersection
+    state_water_rights_fs_intersection
   ),
   pattern = map(basin_comids),
   iteration = "list"
@@ -164,7 +202,7 @@ tar_target(
     dplyr::bind_rows() %>%
     sf::st_as_sf()
 ),
-tar_target(pou_pod_together_sf_final_joined, adding_intersecting_flows %>%
+tar_target(state_water_rights_final_joined, adding_intersecting_flows %>%
              sf::st_drop_geometry() %>%
              dplyr::left_join(flowmet_grt_strahler_1_order %>% dplyr::select(comid,maug_hist, gnis_name, qe_08)) %>%
              sf::st_as_sf() %>%
@@ -177,16 +215,6 @@ tar_target(pou_pod_together_sf_final_joined, adding_intersecting_flows %>%
 
 
 list(targets)
-
-
-
-
-
-
-
-
-
-
 
 
 

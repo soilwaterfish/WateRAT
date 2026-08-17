@@ -7,15 +7,20 @@
 get_mtwr(filter_geom, layer, local_path = NULL, active_only = TRUE)
 }
 \arguments{
-\item{filter_geom}{an object of class bbox be used for clipping.}
+\item{filter_geom}{An \code{sf} geometry used to retain intersecting PODs.}
 
-\item{layer}{Layer name within the \verb{https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip} gdb.}
+\item{layer}{Layer name within the Montana water-right geodatabase.}
 
-\item{local_path}{A file path character string to the MT gdb for water rights POU and POD layers. 'Z:/some_path/wr_rights.gdb'}
+\item{local_path}{A file path to the Montana water-right geodatabase.}
 
 \item{active_only}{Whether to restrict the returned data to rights currently
-eligible for analysis. Set to \code{FALSE} when creating an update snapshot so
-retired rights are retained for comparison.}
+eligible for analysis: \code{WR_STATUS = "ACTIVE"}, non-missing
+\code{MAX_FLOW_CFS}, and \code{SOURCE_TYPE = "SURFACE"}. Set to \code{FALSE} when
+creating an update snapshot so retired and otherwise ineligible rights are
+retained for comparison.}
+}
+\value{
+An \code{sf} object of filtered Montana PODs.
 }
 \description{
 Get Montana Water Rights Data

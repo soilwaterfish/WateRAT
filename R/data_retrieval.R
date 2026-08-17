@@ -1,46 +1,47 @@
 #' Get Montana Water Rights Data
-#' @param filter_geom an object of class bbox be used for clipping.
-#' @param layer Layer name within the `https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip` gdb.
-#' @param local_path A file path character string to the MT gdb for water rights POU and POD layers. 'Z:/some_path/wr_rights.gdb'
+#' @param filter_geom An `sf` geometry used to retain intersecting PODs.
+#' @param layer Layer name within the Montana water-right geodatabase.
+#' @param local_path A file path to the Montana water-right geodatabase.
 #' @param active_only Whether to restrict the returned data to rights currently
-#'   eligible for analysis. Set to `FALSE` when creating an update snapshot so
-#'   retired rights are retained for comparison.
-#' @return
+#'   eligible for analysis: `WR_STATUS = "ACTIVE"`, non-missing
+#'   `MAX_FLOW_CFS`, and `SOURCE_TYPE = "SURFACE"`. Set to `FALSE` when
+#'   creating an update snapshot so retired and otherwise ineligible rights are
+#'   retained for comparison.
+#' @return An `sf` object of filtered Montana PODs.
 #' @export
 #'
 get_mtwr <- function(filter_geom, layer, local_path = NULL, active_only = TRUE) {
-
-  tmp <- tempfile(fileext = ".gpkg")
-
-  x <- st_read(local_path,
-    layer = layer,
-    query = paste0("SELECT * FROM ",layer," LIMIT 0"),
+  layer_schema <- sf::read_sf(
+    local_path,
+    query = paste0("SELECT * FROM ", layer, " LIMIT 0"), quiet = TRUE
+  )
+  filter_geom <- sf::st_transform(filter_geom, sf::st_crs(layer_schema))
+  pods <- sf::read_sf(
+    local_path, layer = layer,
+    wkt_filter = sf::st_as_text(sf::st_union(filter_geom)),
     quiet = TRUE
   )
+  required <- c("WR_STATUS", "MAX_FLOW_CFS", "SOURCE_TYPE")
+  missing <- setdiff(required, names(pods))
+  if (length(missing)) {
+    stop(
+      "`", layer, "` is not a Montana POD layer with required fields: ",
+      paste(missing, collapse = ", "), call. = FALSE
+    )
+  }
 
-  filter_geom <- sf::st_transform(filter_geom, sf::st_crs(x))
+  filter_geom <- sf::st_transform(filter_geom, sf::st_crs(pods))
+  pods <- pods[lengths(sf::st_intersects(pods, filter_geom)) > 0L, , drop = FALSE]
 
-  bb <- sf::st_bbox(filter_geom)
-
-  tmpclp <- tempfile(fileext = ".shp")
-
-  sf::write_sf(filter_geom, tmpclp)
-
-
-    where_clause <- if (!active_only) {
-      ""
-    } else if (layer == "WRQS_PODS") {
-      "-where \"WR_STATUS = 'ACTIVE' AND MAX_FLOW_RT IS NOT NULL\""
-    } else {
-      "-where \"WR_STATUS = 'ACTIVE' AND SOURCE_TYPE = 'SURFACE'\""
-    }
-
-    system(paste("ogr2ogr -spat ", paste(bb[[1]], bb[[2]],
-                                         bb[[3]], bb[[4]]), "-clipsrc ", tmpclp, where_clause,
-                 " -f \"GPKG\"", tmp, local_path, paste(layer, sep = " ",
-                                                        collapse = " ")), intern = TRUE)
-
-  tmp
+  if (active_only) {
+    pods <- pods[
+      toupper(trimws(pods$WR_STATUS)) == "ACTIVE" &
+        !is.na(pods$MAX_FLOW_CFS) &
+        toupper(trimws(pods$SOURCE_TYPE)) == "SURFACE",
+      , drop = FALSE
+    ]
+  }
+  pods
 }
 
 
@@ -109,4 +110,3 @@ url <- arcgislayers::arc_open('https://apps.fs.usda.gov/arcx/rest/services/EDW/E
 admin <- arcgislayers::arc_select(url, filter_geom = filter_geom, ...)
 
 }
-

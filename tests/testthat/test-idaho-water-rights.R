@@ -45,3 +45,21 @@ test_that("IDWR POD source exclusions are case-insensitive", {
   retained <- pods[!toupper(trimws(pods$Source)) %in% toupper(trimws("ground water")), ]
   expect_equal(retained$Source, "SPRING")
 })
+
+test_that("Idaho records standardize to the canonical schema", {
+  raw <- sf::st_as_sf(
+    data.frame(
+      WaterRightNumber = "85-11482", PointOfDiversionID = 10L,
+      Status = "Active", Source = "SCHMIDT CREEK", WRReport = "https://example.test",
+      beneficial_use = "STOCKWATER", from = "1/01", to = "12/31",
+      diversion_rate = 0.02, diversion_rate_unit = "CFS",
+      volume = NA_real_, vol_unit = NA_character_, x = -116, y = 46
+    ),
+    coords = c("x", "y"), crs = 4326
+  )
+  standardized <- standardize_idwr_water_rights(raw)
+  expect_true(all(names(water_right_schema()) %in% names(standardized)))
+  expect_equal(standardized$state, "ID")
+  expect_equal(standardized$max_flow_cfs, 0.02)
+  expect_false(standardized$is_instream)
+})
