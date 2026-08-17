@@ -58,6 +58,64 @@ body {
   padding: clamp(1.5rem, 3vw, 3rem);
 }
 
+.page-hero {
+  background: linear-gradient(120deg, #113d4d, #0b7776);
+  border-radius: .9rem;
+  color: #fff;
+  margin: -1rem -1rem 2rem;
+  overflow: hidden;
+  padding: clamp(2rem, 5vw, 4.5rem);
+  position: relative;
+}
+
+.page-hero::after {
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 50%;
+  content: "";
+  height: 23rem;
+  position: absolute;
+  right: -8rem;
+  top: -13rem;
+  width: 23rem;
+}
+
+.page-hero > * { position: relative; z-index: 1; }
+
+.page-hero h1 { color: #fff; font-size: clamp(2.3rem, 5vw, 4.4rem); max-width: 48rem; }
+.page-hero p { color: #d8f2ed; font-size: 1.13rem; max-width: 42rem; }
+
+.section-kicker {
+  color: var(--waterat-teal);
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.feature-card, .reference-card, .step-card {
+  border: 1px solid #dce6e6;
+  border-radius: .75rem;
+  height: 100%;
+  padding: 1.25rem;
+}
+
+.feature-card { transition: box-shadow .2s ease, transform .2s ease; }
+.feature-card:hover { box-shadow: 0 .6rem 1.5rem rgb(20 45 55 / 12%); transform: translateY(-3px); }
+.feature-icon { align-items: center; background: #d9f0ea; border-radius: .65rem; color: var(--waterat-teal); display: inline-flex; font-size: 1.35rem; height: 2.8rem; justify-content: center; width: 2.8rem; }
+
+.step-number {
+  align-items: center; background: var(--waterat-navy); border-radius: 50%; color: #fff; display: inline-flex; font-weight: 700; height: 2rem; justify-content: center; width: 2rem;
+}
+
+.metric { border-left: 3px solid #6cccb8; padding-left: 1rem; }
+.metric strong { color: var(--waterat-navy); display: block; font-size: 1.5rem; }
+
+.callout { background: #eef8f5; border-left: 4px solid #2ca58d; border-radius: .35rem; padding: 1rem 1.15rem; }
+.callout-warning { background: #fff8df; border-left-color: #d69e2e; }
+
+.docs-content .accordion-button:not(.collapsed) { background: #e9f4f2; color: var(--waterat-navy); }
+.docs-content .nav-pills .nav-link { color: var(--waterat-teal); }
+
 .docs-content h1 {
   color: var(--waterat-navy);
   font-weight: 700;

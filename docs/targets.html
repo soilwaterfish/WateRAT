@@ -1,0 +1,12 @@
+---
+title: Targets framework
+---
+
+<p class="section-kicker">Reproducible execution</p><h1>A state-aware targets pipeline</h1><p class="lead">A static <code>tar_map()</code> branch is created per state, with cache-aware rebuilds and separate worker pools for local computation and NLDI work.</p>
+<div class="row g-3 mb-4"><div class="col-md-4"><div class="step-card"><span class="step-number">1</span><h3>Boundary</h3><p>Read a <code>states</code> layer and filter its <code>state_abbr</code>.</p></div></div><div class="col-md-4"><div class="step-card"><span class="step-number">2</span><h3>Inputs</h3><p>Clip FlowMet and ownership data; obtain canonical state POD records.</p></div></div><div class="col-md-4"><div class="step-card"><span class="step-number">3</span><h3>Results</h3><p>Build comparable basin or network allocation outputs.</p></div></div></div>
+<div class="table-responsive"><table class="table"><thead><tr><th>Pool</th><th>Full mode</th><th>Smoke mode</th><th>Role</th></tr></thead><tbody><tr><td><code>compute</code></td><td>88</td><td>2</td><td>Local spatial and data processing</td></tr><tr><td><code>nldi</code></td><td>8</td><td>2</td><td>Rate-limited NLDI work</td></tr></tbody></table></div>
+<pre><code>targets::tar_make()
+targets::tar_visnetwork()
+targets::tar_outdated()
+targets::tar_progress()</code></pre>
+<div class="callout">The established basin path remains the validation baseline. The network functions are developed alongside it so both approaches can be compared on the same reporting lines.</div>
