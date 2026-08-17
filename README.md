@@ -7,6 +7,9 @@
 
 Water Rights Allocation Tool for R (`WateRAT`) provides methods for retrieving and analyzing water allocation and modeled streamflow data.
 
+Detailed setup, filtering, schema, targets, network-routing, and GeoPackage
+documentation is published at <https://soilwaterfish.github.io/WateRAT/>.
+
 The package uses Montana [Points of Diversion (POD)](https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip) and [FlowMet](https://www.fs.usda.gov/rm/boise/AWAE/projects/modeled_stream_flow_metrics.shtml) streamflow outputs to quantify water allocations relative to modeled August streamflow.
 
 This work was originally developed as part of a master's thesis at Montana State University (Oestreich, 2023).
@@ -435,7 +438,6 @@ targets <- tar_map(
       layer = "WRQS_PODS",
       local_path = "data/WRQS_Dataset_GDB.gdb"
     ) %>%
-      sf::read_sf() %>%
       dplyr::group_by(WRKEY) %>%
       dplyr::slice(1) %>%
       dplyr::ungroup()
@@ -752,7 +754,6 @@ old_pods <- get_mtwr(
   local_path = "data/WRQS_Dataset_GDB.gdb",
   active_only = FALSE
 ) |>
-  sf::read_sf() |>
   water_right_snapshot()
 
 write_water_right_snapshot(old_pods, "data/snapshots/pods_previous.gpkg")
@@ -769,7 +770,6 @@ current <- get_mtwr(
   local_path = "data/WRQS_Dataset_GDB.gdb",
   active_only = FALSE
 ) |>
-  sf::read_sf() |>
   water_right_snapshot()
 
 changes <- detect_water_right_changes(previous, current)

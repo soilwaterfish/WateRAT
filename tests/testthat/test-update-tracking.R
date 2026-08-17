@@ -4,7 +4,8 @@ test_that("water-right changes select their downstream basins", {
       PODV_ID_SEQ = c(1L, 2L),
       WRKEY = c("A", "B"),
       WR_STATUS = c("ACTIVE", "ACTIVE"),
-      MAX_FLOW_RT = c(1, 2),
+      MAX_FLOW_CFS = c(1, 2),
+      SOURCE_TYPE = c("SURFACE", "SURFACE"),
       x = c(0, 10),
       y = c(0, 0)
     ),
@@ -22,7 +23,8 @@ test_that("water-right changes select their downstream basins", {
         PODV_ID_SEQ = 3L,
         WRKEY = "C",
         WR_STATUS = "ACTIVE",
-        MAX_FLOW_RT = 1,
+        MAX_FLOW_CFS = 1,
+        SOURCE_TYPE = "SURFACE",
         x = 1,
         y = 1
       ),

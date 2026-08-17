@@ -64,6 +64,50 @@ nldi_basin_function <- function(point){
 
 }
 
+#' Index a point to an NHDPlus COMID
+#'
+#' A COMID-only counterpart to `nldi_basin_function()`. It calls NLDI's
+#' hydrolocation endpoint, which returns a valid flowline COMID by snapping a
+#' nearby point or tracing downhill to the appropriate downstream flowline. It
+#' does not download a basin polygon.
+#'
+#' @param point A one-row `sf` point object.
+#' @return The input point with a character `comid` column. `comid` is `NA`
+#'   when NLDI has no indexed feature for the location.
+#' @export
+nldi_comid_function <- function(point) {
+  if (!inherits(point, "sf") || nrow(point) != 1L ||
+      !all(sf::st_geometry_type(point) %in% "POINT")) {
+    stop("`point` must be a one-row sf object with POINT geometry.", call. = FALSE)
+  }
+  original_crs <- sf::st_crs(point)
+  point_4326 <- sf::st_transform(point, 4326)
+  coordinates <- sf::st_coordinates(point_4326)[1L, ]
+  url <- paste0(
+    "https://api.water.usgs.gov/nldi/linked-data/hydrolocation?coords=POINT%28",
+    coordinates[[1L]], "%20", coordinates[[2L]], "%29"
+  )
+  response <- httr2::request(url) |>
+    httr2::req_timeout(20) |>
+    httr2::req_perform()
+  payload <- httr2::resp_body_json(response, simplifyVector = FALSE)
+  properties <- payload$properties
+  if (is.null(properties) && !is.null(payload$features$properties)) {
+    properties <- payload$features$properties
+  }
+  if (is.null(properties) && length(payload$features) && !is.null(payload$features[[1L]]$properties)) {
+    properties <- payload$features[[1L]]$properties
+  }
+  comid <- properties$comid
+  if (is.null(comid)) comid <- properties$identifier
+  point$comid <- if (is.null(comid) || !length(comid)) {
+    NA_character_
+  } else {
+    as.character(comid[[1L]])
+  }
+  sf::st_transform(point, original_crs)
+}
+
 
 #' Intersecting sites within Basin
 #'
@@ -73,34 +117,35 @@ nldi_basin_function <- function(point){
 #'
 #' @return A POLYGON with other sites that intersect it
 capture_sites_within <- function(x, tog) {
+  validate_water_rights(tog)
   intersecting_sites <- sf::st_intersects(tog, x)
   intersecting_sites <- purrr::map_vec(intersecting_sites,
                                        ~dplyr::if_else(length(.x) == 0, FALSE, TRUE))
-  WRKEYS <- tog[intersecting_sites, ]$WRKEY
-  adding_flows <- tog %>% dplyr::filter(WRKEY %in% WRKEYS)
-x <- x %>% dplyr::mutate(intersecting_sites = stringr::str_c(WRKEYS[!is.na(WRKEYS)],
+  record_ids <- tog[intersecting_sites, ]$record_id
+  adding_flows <- tog %>% dplyr::filter(.data$record_id %in% record_ids)
+x <- x %>% dplyr::mutate(intersecting_sites = stringr::str_c(record_ids[!is.na(record_ids)],
                           collapse = ", "),
-                         intersecting_flow_all_together = sum(adding_flows$MAX_FLOW_CFS,
+                         intersecting_flow_all_together = sum(adding_flows$max_flow_cfs,
                           na.rm = TRUE),
-                         intersecting_flow_all_together_instream = sum(adding_flows[adding_flows$MEANS_OF_DIV ==
-                          "INSTREAM", ]$MAX_FLOW_CFS, na.rm = TRUE),
-                         intersecting_flow_all_together_non_instream = sum(adding_flows[adding_flows$MEANS_OF_DIV !=
-                          "INSTREAM", ]$MAX_FLOW_CFS, na.rm = TRUE),
+                         intersecting_flow_all_together_instream = sum(adding_flows[adding_flows$is_instream,
+                          ]$max_flow_cfs, na.rm = TRUE),
+                         intersecting_flow_all_together_non_instream = sum(adding_flows[!adding_flows$is_instream,
+                          ]$max_flow_cfs, na.rm = TRUE),
                          intersecting_flow_fs = sum(adding_flows[adding_flows$fs_intersection,
-                          ]$MAX_FLOW_CFS, na.rm = TRUE),
+                          ]$max_flow_cfs, na.rm = TRUE),
                          intersecting_flow_fs_instream = sum(adding_flows[adding_flows$fs_intersection &
-                          adding_flows$MEANS_OF_DIV == "INSTREAM", ]$MAX_FLOW_CFS,
+                          adding_flows$is_instream, ]$max_flow_cfs,
                           na.rm = TRUE),
                          intersecting_flow_fs_non_instream = sum(adding_flows[adding_flows$fs_intersection &
-                          adding_flows$MEANS_OF_DIV != "INSTREAM", ]$MAX_FLOW_CFS,
+                          !adding_flows$is_instream, ]$max_flow_cfs,
                           na.rm = TRUE),
                          intersecting_flow_private = sum(adding_flows[!adding_flows$fs_intersection,
-                          ]$MAX_FLOW_CFS,
+                          ]$max_flow_cfs,
                           na.rm = TRUE), intersecting_flow_private_instream = sum(adding_flows[!adding_flows$fs_intersection &
-                          adding_flows$MEANS_OF_DIV == "INSTREAM", ]$MAX_FLOW_CFS,
+                          adding_flows$is_instream, ]$max_flow_cfs,
                           na.rm = TRUE),
                          intersecting_flow_private_non_instream = sum(adding_flows[!adding_flows$fs_intersection &
-                          adding_flows$MEANS_OF_DIV != "INSTREAM", ]$MAX_FLOW_CFS,
+                          !adding_flows$is_instream, ]$max_flow_cfs,
                                                      na.rm = TRUE))
 }
 

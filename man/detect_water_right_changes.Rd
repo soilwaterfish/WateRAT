@@ -17,7 +17,8 @@ An \code{sf} object of changed PODs with a \code{change_type} column.
 }
 \description{
 Compare two full POD snapshots. A right is considered active for analysis
-when \code{WR_STATUS} is \code{ACTIVE} and \code{MAX_FLOW_RT} is present. A change from
+when \code{WR_STATUS} is \code{ACTIVE}, \code{MAX_FLOW_CFS} is present, and \code{SOURCE_TYPE}
+is \code{SURFACE}. A change from
 ineligible to eligible is an addition; a change from eligible to ineligible,
 including a missing record, is a retirement.
 }

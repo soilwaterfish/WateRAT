@@ -143,6 +143,93 @@ expand_idwr_pods_by_use <- function(pods, retries = 2L) {
   dplyr::left_join(pods, uses, by = "WRReport")
 }
 
+#' Standardize Idaho water rights
+#'
+#' Convert expanded IDWR PODs into WateRAT's canonical cross-state schema.
+#' `diversion_rate` is retained in its reported unit and `max_flow_cfs` is set
+#' only when that unit is CFS; rates in other units remain missing rather than
+#' being converted with an unsupported assumption.
+#'
+#' @param pods_by_use An `sf` object from [expand_idwr_pods_by_use()].
+#' @return Canonical WateRAT water-right records.
+#' @export
+standardize_idwr_water_rights <- function(pods_by_use) {
+  required <- c("WaterRightNumber", "PointOfDiversionID", "Status", "Source", "WRReport",
+                "beneficial_use", "from", "to", "diversion_rate", "diversion_rate_unit",
+                "volume", "vol_unit")
+  missing <- setdiff(required, names(pods_by_use))
+  if (!inherits(pods_by_use, "sf") || length(missing)) {
+    stop("Idaho PODs are missing fields: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  use_number <- ave(seq_len(nrow(pods_by_use)), pods_by_use$PointOfDiversionID,
+                    FUN = seq_along)
+  rate_unit <- toupper(trimws(pods_by_use$diversion_rate_unit))
+  result <- dplyr::transmute(
+    pods_by_use,
+    state = "ID",
+    right_id = trimws(.data$WaterRightNumber),
+    site_id = as.character(.data$PointOfDiversionID),
+    record_id = paste("ID", .data$PointOfDiversionID, use_number, sep = ":"),
+    status = .data$Status,
+    source = .data$Source,
+    beneficial_use = .data$beneficial_use,
+    diversion_start = dplyr::na_if(.data$from, ""),
+    diversion_end = dplyr::na_if(.data$to, ""),
+    max_flow_cfs = dplyr::if_else(rate_unit == "CFS", as.numeric(.data$diversion_rate), NA_real_),
+    diversion_rate = as.numeric(.data$diversion_rate),
+    diversion_rate_unit = .data$diversion_rate_unit,
+    volume = as.numeric(.data$volume),
+    volume_unit = .data$vol_unit,
+    is_instream = grepl("INSTREAM", .data$beneficial_use, ignore.case = TRUE),
+    report_url = .data$WRReport
+  )
+  validate_water_rights(result)
+  result
+}
+
+#' Build a cached Idaho canonical water-right layer
+#'
+#' Filter, scrape, expand, and standardize IDWR points of diversion, then write
+#' the canonical output to a local GeoPackage. Run this deliberately when IDWR
+#' data change; the state-wide scrape is intentionally not performed during a
+#' routine targets pipeline run.
+#'
+#' @param local_path Path to the IDWR `PODRight` geodatabase.
+#' @param filter_geom Idaho analysis boundary.
+#' @param cache_path Output GeoPackage path for canonical records.
+#' @param exclude_source Source values to exclude before scraping.
+#' @param layer Output layer name.
+#' @param retries Number of retry attempts per report request.
+#' @param month Analysis month to retain after standardization. Defaults to
+#'   August, matching FlowMet's August streamflow metric.
+#' @param include_missing_period Whether to retain records without a reported
+#'   diversion period.
+#' @return `cache_path`, invisibly.
+#' @export
+cache_idwr_water_rights <- function(local_path, filter_geom, cache_path,
+                                    exclude_source = "GROUND WATER",
+                                    layer = "water_rights", retries = 2L,
+                                    month = 8L, include_missing_period = TRUE) {
+  water_rights <- get_idwr_pods(
+    local_path = local_path,
+    filter_geom = filter_geom,
+    exclude_source = exclude_source
+  ) |>
+    expand_idwr_pods_by_use(retries = retries) |>
+    standardize_idwr_water_rights() |>
+    filter_water_rights_month(
+      month = month,
+      include_missing_period = include_missing_period
+    )
+
+  dir.create(dirname(cache_path), recursive = TRUE, showWarnings = FALSE)
+  sf::write_sf(
+    water_rights, cache_path, layer = layer,
+    delete_layer = file.exists(cache_path), quiet = TRUE
+  )
+  invisible(cache_path)
+}
+
 #' Write expanded Idaho water uses
 #'
 #' @param pods_by_use An `sf` object from [expand_idwr_pods_by_use()].

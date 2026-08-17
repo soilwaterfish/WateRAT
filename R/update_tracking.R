@@ -11,7 +11,7 @@
 #' @return An `sf` object with `analysis_active` and `snapshot_date` columns.
 #' @export
 water_right_snapshot <- function(pods, snapshot_date = Sys.Date(), key = "PODV_ID_SEQ") {
-  required <- c(key, "WRKEY", "WR_STATUS", "MAX_FLOW_RT")
+  required <- c(key, "WRKEY", "WR_STATUS", "MAX_FLOW_CFS", "SOURCE_TYPE")
   missing <- setdiff(required, names(pods))
   if (!inherits(pods, "sf") || length(missing)) {
     stop("`pods` must be an sf object containing: ", paste(required, collapse = ", "), call. = FALSE)
@@ -22,7 +22,9 @@ water_right_snapshot <- function(pods, snapshot_date = Sys.Date(), key = "PODV_I
 
   dplyr::mutate(
     pods,
-    analysis_active = toupper(trimws(.data$WR_STATUS)) == "ACTIVE" & !is.na(.data$MAX_FLOW_RT),
+    analysis_active = toupper(trimws(.data$WR_STATUS)) == "ACTIVE" &
+      !is.na(.data$MAX_FLOW_CFS) &
+      toupper(trimws(.data$SOURCE_TYPE)) == "SURFACE",
     snapshot_date = as.Date(snapshot_date)
   )
 }
@@ -55,7 +57,8 @@ read_water_right_snapshot <- function(path) {
 #' Detect added and retired water rights
 #'
 #' Compare two full POD snapshots. A right is considered active for analysis
-#' when `WR_STATUS` is `ACTIVE` and `MAX_FLOW_RT` is present. A change from
+#' when `WR_STATUS` is `ACTIVE`, `MAX_FLOW_CFS` is present, and `SOURCE_TYPE`
+#' is `SURFACE`. A change from
 #' ineligible to eligible is an addition; a change from eligible to ineligible,
 #' including a missing record, is a retirement.
 #'
