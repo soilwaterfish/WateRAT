@@ -253,9 +253,19 @@ standardize_idwr_water_rights <- function(pods_by_use) {
   idwr_uses <- if ("Uses" %in% names(pods_by_use)) as.character(pods_by_use$Uses) else NA_character_
   condition_codes <- if ("condition_codes" %in% names(pods_by_use)) pods_by_use$condition_codes else NA_character_
   condition_text <- if ("condition_text" %in% names(pods_by_use)) pods_by_use$condition_text else NA_character_
-  instream_pattern <- "INSTREAM|MINIMUM[[:space:]]+STREAM[[:space:]]+FLOW"
+  instream_pattern <- paste(
+    "INSTREAM",
+    "MINI(?:M|N)UM[[:space:]]+STREAM[[:space:]]+FLOW",
+    "WILD[[:space:]]+AND[[:space:]]+SCENIC[[:space:]]+RIVER",
+    sep = "|"
+  )
+  has_condition_148 <- grepl(
+    "(^|;[[:space:]]*)148([[:space:]]*;|$)",
+    dplyr::coalesce(condition_codes, "")
+  )
   is_instream <- grepl(instream_pattern, dplyr::coalesce(pods_by_use$beneficial_use, ""), ignore.case = TRUE) |
-    grepl(instream_pattern, dplyr::coalesce(idwr_uses, ""), ignore.case = TRUE)
+    grepl(instream_pattern, dplyr::coalesce(idwr_uses, ""), ignore.case = TRUE) |
+    has_condition_148
   result <- dplyr::transmute(
     pods_by_use,
     state = "ID",

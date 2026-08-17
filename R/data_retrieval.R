@@ -4,9 +4,10 @@
 #' @param local_path A file path to the Montana water-right geodatabase.
 #' @param active_only Whether to restrict the returned data to rights currently
 #'   eligible for analysis: `WR_STATUS = "ACTIVE"`, non-missing
-#'   `MAX_FLOW_CFS`, and `SOURCE_TYPE = "SURFACE"`. Set to `FALSE` when
-#'   creating an update snapshot so retired and otherwise ineligible rights are
-#'   retained for comparison.
+#'   `MAX_FLOW_CFS`, `SOURCE_TYPE = "SURFACE"`, and a purpose other than
+#'   `POWER GENERATION, NONCONSUMPTIVE`. Set to `FALSE` when creating an update
+#'   snapshot so retired and otherwise ineligible rights are retained for
+#'   comparison.
 #' @return An `sf` object of filtered Montana PODs.
 #' @export
 #'
@@ -21,7 +22,7 @@ get_mtwr <- function(filter_geom, layer, local_path = NULL, active_only = TRUE) 
     wkt_filter = sf::st_as_text(sf::st_union(filter_geom)),
     quiet = TRUE
   )
-  required <- c("WR_STATUS", "MAX_FLOW_CFS", "SOURCE_TYPE")
+  required <- c("WR_STATUS", "MAX_FLOW_CFS", "SOURCE_TYPE", "PURPOSES")
   missing <- setdiff(required, names(pods))
   if (length(missing)) {
     stop(
@@ -37,7 +38,8 @@ get_mtwr <- function(filter_geom, layer, local_path = NULL, active_only = TRUE) 
     pods <- pods[
       toupper(trimws(pods$WR_STATUS)) == "ACTIVE" &
         !is.na(pods$MAX_FLOW_CFS) &
-        toupper(trimws(pods$SOURCE_TYPE)) == "SURFACE",
+        toupper(trimws(pods$SOURCE_TYPE)) == "SURFACE" &
+        toupper(trimws(pods$PURPOSES)) != "POWER GENERATION, NONCONSUMPTIVE",
       , drop = FALSE
     ]
   }

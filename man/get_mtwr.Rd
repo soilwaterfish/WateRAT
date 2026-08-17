@@ -15,9 +15,10 @@ get_mtwr(filter_geom, layer, local_path = NULL, active_only = TRUE)
 
 \item{active_only}{Whether to restrict the returned data to rights currently
 eligible for analysis: \code{WR_STATUS = "ACTIVE"}, non-missing
-\code{MAX_FLOW_CFS}, and \code{SOURCE_TYPE = "SURFACE"}. Set to \code{FALSE} when
-creating an update snapshot so retired and otherwise ineligible rights are
-retained for comparison.}
+\code{MAX_FLOW_CFS}, \code{SOURCE_TYPE = "SURFACE"}, and a purpose other than
+\verb{POWER GENERATION, NONCONSUMPTIVE}. Set to \code{FALSE} when creating an update
+snapshot so retired and otherwise ineligible rights are retained for
+comparison.}
 }
 \value{
 An \code{sf} object of filtered Montana PODs.

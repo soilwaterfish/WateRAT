@@ -96,20 +96,21 @@ test_that("Idaho records standardize to the canonical schema", {
   expect_false(standardized$is_instream)
 })
 
-test_that("Idaho Uses supports instream classification and EDA fields", {
+test_that("Idaho uses and condition code 148 support instream classification", {
   raw <- sf::st_as_sf(
     data.frame(
-      WaterRightNumber = "85-11482", PointOfDiversionID = 10L,
+      WaterRightNumber = rep("85-11482", 3), PointOfDiversionID = 10:12,
       Status = "Active", Source = "SCHMIDT CREEK", WRReport = "https://example.test",
-      Uses = "MINIMUM STREAM FLOW", beneficial_use = "FISH AND WILDLIFE",
+      Uses = c("DOMESTIC", "DOMESTIC", "DOMESTIC"),
+      beneficial_use = c("MINIMUM STREAM FLOW", "WILD AND SCENIC RIVER", "DOMESTIC"),
       from = "1/01", to = "12/31", diversion_rate = 17, diversion_rate_unit = "CFS",
-      volume = NA_real_, vol_unit = NA_character_, condition_codes = "148; 151",
-      condition_text = "Preserve streamflow.\n\nNo diversions.", x = -116, y = 46
+      volume = NA_real_, vol_unit = NA_character_, condition_codes = c("", "", "149; 148; 151"),
+      condition_text = "Preserve streamflow.", x = -116:-114, y = 46
     ),
     coords = c("x", "y"), crs = 4326
   )
   standardized <- standardize_idwr_water_rights(raw)
-  expect_true(standardized$is_instream)
-  expect_equal(standardized$idwr_uses, "MINIMUM STREAM FLOW")
-  expect_equal(standardized$condition_codes, "148; 151")
+  expect_true(all(standardized$is_instream))
+  expect_equal(standardized$beneficial_use, c("MINIMUM STREAM FLOW", "WILD AND SCENIC RIVER", "DOMESTIC"))
+  expect_equal(standardized$condition_codes[[3]], "149; 148; 151")
 })

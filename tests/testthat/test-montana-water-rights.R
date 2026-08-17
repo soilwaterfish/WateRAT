@@ -1,10 +1,11 @@
 test_that("Montana POD filtering uses sf and the analysis eligibility rules", {
   source_pods <- sf::st_as_sf(
     data.frame(
-      WR_STATUS = c("ACTIVE", "ACTIVE", "ACTIVE", "RETIRED", "ACTIVE"),
-      MAX_FLOW_CFS = c(1, NA, 3, 4, 5),
-      SOURCE_TYPE = c("SURFACE", "SURFACE", "GROUNDWATER", "SURFACE", "SURFACE"),
-      x = c(0, 1, 2, 3, 20), y = 0
+      WR_STATUS = c("ACTIVE", "ACTIVE", "ACTIVE", "RETIRED", "ACTIVE", "ACTIVE"),
+      MAX_FLOW_CFS = c(1, NA, 3, 4, 5, 6),
+      SOURCE_TYPE = c("SURFACE", "SURFACE", "GROUNDWATER", "SURFACE", "SURFACE", "SURFACE"),
+      PURPOSES = c("IRRIGATION", "IRRIGATION", "IRRIGATION", "IRRIGATION", "IRRIGATION", "POWER GENERATION, NONCONSUMPTIVE"),
+      x = c(0, 1, 2, 3, 20, 2.5), y = 0
     ),
     coords = c("x", "y"), crs = 4326
   )
@@ -20,5 +21,5 @@ test_that("Montana POD filtering uses sf and the analysis eligibility rules", {
 
   expect_equal(nrow(eligible), 1L)
   expect_equal(eligible$MAX_FLOW_CFS, 1)
-  expect_equal(nrow(all_records), 4L)
+  expect_equal(nrow(all_records), 5L)
 })
