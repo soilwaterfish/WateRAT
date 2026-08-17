@@ -1,0 +1,4 @@
+title: WateRAT
+description: Water-right allocation analysis with reproducible state adapters and NHDPlus routing.
+theme: jekyll-theme-cayman
+markdown: kramdown

@@ -7,6 +7,9 @@
 
 Water Rights Allocation Tool for R (`WateRAT`) provides methods for retrieving and analyzing water allocation and modeled streamflow data.
 
+Detailed setup, filtering, schema, targets, network-routing, and GeoPackage
+documentation is published at <https://soilwaterfish.github.io/WateRAT/>.
+
 The package uses Montana [Points of Diversion (POD)](https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip) and [FlowMet](https://www.fs.usda.gov/rm/boise/AWAE/projects/modeled_stream_flow_metrics.shtml) streamflow outputs to quantify water allocations relative to modeled August streamflow.
 
 This work was originally developed as part of a master's thesis at Montana State University (Oestreich, 2023).
