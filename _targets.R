@@ -15,6 +15,11 @@ if (!run_mode %in% c("full", "smoke")) {
 }
 compute_workers <- if (run_mode == "smoke") 2L else 88L
 nldi_workers <- if (run_mode == "smoke") 2L else 8L
+# Set this to a routing-capable local NHDPlus geodatabase to avoid downloading
+# NHDPlus for each state. The selected layer is spatially filtered at the GDAL
+# source before it is read. Leave unset to retain the NLDI download behavior.
+nhdplus_gdb_path <- Sys.getenv("WATERAT_NHDPLUS_GDB", unset = "")
+nhdplus_layer <- Sys.getenv("WATERAT_NHDPLUS_LAYER", unset = "NHDFlowline_Network")
 
 controller_compute <- crew::crew_controller_local(
   name = "compute",
@@ -105,7 +110,15 @@ tar_target(flowmet_intersect, get_flowmet(filter_geom = state_boundary,
 
 tar_target(
   nhdplus,
-  nhdplusTools::get_nhdplus(sf::st_as_sfc(sf::st_bbox(flowmet_intersect)))
+  if (nzchar(nhdplus_gdb_path)) {
+    read_nhdplus_flowlines(
+      path = nhdplus_gdb_path,
+      filter_geom = state_boundary,
+      layer = nhdplus_layer
+    )
+  } else {
+    nhdplusTools::get_nhdplus(sf::st_as_sfc(sf::st_bbox(flowmet_intersect)))
+  }
 ),
 
 tar_target(flowmet_join_nhdplus, flowmet_intersect %>% dplyr::select(maug_hist, comid) %>%
@@ -215,8 +228,6 @@ tar_target(state_water_rights_final_joined, adding_intersecting_flows %>%
 
 
 list(targets)
-
-
 
 
 
