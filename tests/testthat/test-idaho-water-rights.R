@@ -8,7 +8,7 @@ test_that("IDWR Water Uses tables are parsed and totals are omitted", {
     "</tbody></table>"
   ))
 
-  uses <- WateRAT:::.idwr_water_uses_table(html)
+  uses <- WaterRAT:::.idwr_water_uses_table(html)
 
   expect_equal(nrow(uses), 2L)
   expect_equal(uses$beneficial_use, c("IRRIGATION", "DOMESTIC"))
@@ -25,7 +25,7 @@ test_that("IDWR Conditions tables retain codes and text", {
     "<tr><td>027</td><td>Use of water shall be non-consumptive.</td></tr>",
     "</tbody></table>"
   ))
-  conditions <- WateRAT:::.idwr_conditions_table(html)
+  conditions <- WaterRAT:::.idwr_conditions_table(html)
   expect_equal(conditions$condition_code, c("148", "027"))
   expect_equal(
     conditions$condition_text,
@@ -39,7 +39,7 @@ test_that("IDWR Conditions parser accepts the live Condtions spelling", {
     "<tr><td>148</td><td>Preserve streamflow.</td></tr>",
     "</tbody></table>"
   ))
-  conditions <- WateRAT:::.idwr_conditions_table(html)
+  conditions <- WaterRAT:::.idwr_conditions_table(html)
   expect_equal(conditions$condition_code, "148")
   expect_equal(conditions$condition_text, "Preserve streamflow.")
 })
@@ -74,7 +74,7 @@ test_that("IDWR POD source exclusions are case-insensitive", {
 
 test_that("standard Idaho exclusions remove non-surface source categories", {
   sources <- c("GROUND WATER", "WASTE DITCH", "WASTE WATER", "WASTEWATER", "SEEPAGE", "SPRING")
-  retained <- sources[!toupper(trimws(sources)) %in% WateRAT:::.idwr_excluded_sources]
+  retained <- sources[!toupper(trimws(sources)) %in% WaterRAT:::.idwr_excluded_sources]
   expect_equal(retained, "SPRING")
 })
 

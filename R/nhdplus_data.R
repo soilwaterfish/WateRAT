@@ -70,7 +70,7 @@ read_nhdplus_aoi <- function(
 #' Read routing-ready local NHDPlus flowlines for an AOI
 #'
 #' This is the local-dataset counterpart to `nhdplusTools::get_nhdplus()` for
-#' the fields required by WateRAT's downstream accumulation workflow.
+#' the fields required by WaterRAT's downstream accumulation workflow.
 #'
 #' @inheritParams read_nhdplus_aoi
 #' @return An `sf` flowline layer with lower-case NHDPlus field names.

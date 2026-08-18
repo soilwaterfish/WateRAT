@@ -3,12 +3,12 @@
 
 
 
-# WateRAT
+# WaterRAT
 
-Water Rights Allocation Tool for R (`WateRAT`) provides methods for retrieving and analyzing water allocation and modeled streamflow data.
+Water Rights Allocation Tool for R (`WaterRAT`) provides methods for retrieving and analyzing water allocation and modeled streamflow data.
 
 Detailed setup, filtering, schema, targets, network-routing, and GeoPackage
-documentation is published at <https://soilwaterfish.github.io/WateRAT/>.
+documentation is published at <https://soilwaterfish.github.io/WaterRAT/>.
 
 The package uses Montana [Points of Diversion (POD)](https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip) and [FlowMet](https://www.fs.usda.gov/rm/boise/AWAE/projects/modeled_stream_flow_metrics.shtml) streamflow outputs to quantify water allocations relative to modeled August streamflow.
 
@@ -18,11 +18,11 @@ The package also includes a [{targets}](https://books.ropensci.org/targets/) pip
 
 ## Installation
 
-Install the development version of `WateRAT` from GitHub with:
+Install the development version of `WaterRAT` from GitHub with:
 
 ```r
 # install.packages("devtools")
-devtools::install_github("soilwaterfish/WateRAT")
+devtools::install_github("soilwaterfish/WaterRAT")
 ```
 
 To run the development pipeline, install the workflow packages if needed:
@@ -35,7 +35,7 @@ install.packages(c(
 ))
 ```
 
-The remaining spatial and data-processing dependencies are installed with `WateRAT` or can be installed separately if needed.
+The remaining spatial and data-processing dependencies are installed with `WaterRAT` or can be installed separately if needed.
 
 ## Methods
 
@@ -298,7 +298,7 @@ controller <- crew::crew_controller_group(
 
 tar_option_set(
   packages = c(
-    "WateRAT",
+    "WaterRAT",
     "nhdplusTools",
     "dplyr",
     "purrr",

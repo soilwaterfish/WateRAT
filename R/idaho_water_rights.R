@@ -231,13 +231,13 @@ expand_idwr_pods_by_use <- function(pods, retries = 2L) {
 
 #' Standardize Idaho water rights
 #'
-#' Convert expanded IDWR PODs into WateRAT's canonical cross-state schema.
+#' Convert expanded IDWR PODs into WaterRAT's canonical cross-state schema.
 #' `diversion_rate` is retained in its reported unit and `max_flow_cfs` is set
 #' only when that unit is CFS; rates in other units remain missing rather than
 #' being converted with an unsupported assumption.
 #'
 #' @param pods_by_use An `sf` object from [expand_idwr_pods_by_use()].
-#' @return Canonical WateRAT water-right records.
+#' @return Canonical WaterRAT water-right records.
 #' @export
 standardize_idwr_water_rights <- function(pods_by_use) {
   required <- c("WaterRightNumber", "PointOfDiversionID", "Status", "Source", "WRReport",

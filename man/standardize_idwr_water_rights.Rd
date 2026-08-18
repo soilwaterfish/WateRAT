@@ -10,10 +10,10 @@ standardize_idwr_water_rights(pods_by_use)
 \item{pods_by_use}{An \code{sf} object from \code{\link[=expand_idwr_pods_by_use]{expand_idwr_pods_by_use()}}.}
 }
 \value{
-Canonical WateRAT water-right records.
+Canonical WaterRAT water-right records.
 }
 \description{
-Convert expanded IDWR PODs into WateRAT's canonical cross-state schema.
+Convert expanded IDWR PODs into WaterRAT's canonical cross-state schema.
 \code{diversion_rate} is retained in its reported unit and \code{max_flow_cfs} is set
 only when that unit is CFS; rates in other units remain missing rather than
 being converted with an unsupported assumption.

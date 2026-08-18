@@ -1,6 +1,6 @@
 #' Canonical water-right fields
 #'
-#' Return the state-agnostic fields required by WateRAT's analysis utilities.
+#' Return the state-agnostic fields required by WaterRAT's analysis utilities.
 #' Each state adapter must return these fields, with a point geometry, before
 #' entering the targets pipeline.
 #'
@@ -92,7 +92,7 @@ filter_water_rights_month <- function(water_rights, month = 8L,
 #' Standardize Montana water rights
 #'
 #' @param pods An `sf` object from Montana's `WRQS_PODS` layer.
-#' @return Canonical WateRAT water-right records.
+#' @return Canonical WaterRAT water-right records.
 #' @export
 standardize_mt_water_rights <- function(pods) {
   required <- c("WRKEY", "PODV_ID_SEQ", "WR_STATUS", "SOURCE_NAME", "MEANS_OF_DIV",
@@ -126,7 +126,7 @@ standardize_mt_water_rights <- function(pods) {
 
 #' Get canonical water rights for a state
 #'
-#' Dispatch to a state adapter and return records in the canonical WateRAT
+#' Dispatch to a state adapter and return records in the canonical WaterRAT
 #' schema. New state support belongs in a dedicated adapter, not in downstream
 #' analysis utilities.
 #'
@@ -134,7 +134,7 @@ standardize_mt_water_rights <- function(pods) {
 #' @param filter_geom `sf` geometry used to filter points of diversion.
 #' @param local_path State water-right dataset path.
 #' @param ... State-specific retrieval arguments passed to the adapter.
-#' @return Canonical WateRAT water-right records.
+#' @return Canonical WaterRAT water-right records.
 #' @export
 get_state_water_rights <- function(state, filter_geom, local_path, ...) {
   state <- toupper(state)
@@ -157,5 +157,5 @@ get_state_water_rights <- function(state, filter_geom, local_path, ...) {
       expand_idwr_pods_by_use()
     return(standardize_idwr_water_rights(pods))
   }
-  stop("No WateRAT adapter is registered for state `", state, "`.", call. = FALSE)
+  stop("No WaterRAT adapter is registered for state `", state, "`.", call. = FALSE)
 }

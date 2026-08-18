@@ -10,7 +10,7 @@ water_right_schema()
 A named character vector of canonical field names and definitions.
 }
 \description{
-Return the state-agnostic fields required by WateRAT's analysis utilities.
+Return the state-agnostic fields required by WaterRAT's analysis utilities.
 Each state adapter must return these fields, with a point geometry, before
 entering the targets pipeline.
 }

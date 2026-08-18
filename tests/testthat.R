@@ -1,4 +1,4 @@
 library(testthat)
-library(WateRAT)
+library(WaterRAT)
 
-test_check("WateRAT")
+test_check("WaterRAT")

@@ -26,5 +26,5 @@ An \code{sf} flowline layer with lower-case NHDPlus field names.
 }
 \description{
 This is the local-dataset counterpart to \code{nhdplusTools::get_nhdplus()} for
-the fields required by WateRAT's downstream accumulation workflow.
+the fields required by WaterRAT's downstream accumulation workflow.
 }

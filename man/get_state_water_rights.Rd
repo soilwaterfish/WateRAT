@@ -16,10 +16,10 @@ get_state_water_rights(state, filter_geom, local_path, ...)
 \item{...}{State-specific retrieval arguments passed to the adapter.}
 }
 \value{
-Canonical WateRAT water-right records.
+Canonical WaterRAT water-right records.
 }
 \description{
-Dispatch to a state adapter and return records in the canonical WateRAT
+Dispatch to a state adapter and return records in the canonical WaterRAT
 schema. New state support belongs in a dedicated adapter, not in downstream
 analysis utilities.
 }

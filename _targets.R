@@ -7,19 +7,19 @@ library(targets)
 library(tarchetypes)
 library(crew)
 
-# Set WATERAT_RUN_MODE=smoke only after `prepare_smoke_test()` creates the
+# Set WATERRAT_RUN_MODE=smoke only after `prepare_smoke_test()` creates the
 # ignored smoke inputs. Full mode remains the default.
-run_mode <- Sys.getenv("WATERAT_RUN_MODE", unset = "full")
+run_mode <- Sys.getenv("WATERRAT_RUN_MODE", unset = "full")
 if (!run_mode %in% c("full", "smoke")) {
-  stop("WATERAT_RUN_MODE must be `full` or `smoke`.", call. = FALSE)
+  stop("WATERRAT_RUN_MODE must be `full` or `smoke`.", call. = FALSE)
 }
 compute_workers <- if (run_mode == "smoke") 2L else 88L
 nldi_workers <- if (run_mode == "smoke") 2L else 8L
 # Set this to a routing-capable local NHDPlus geodatabase to avoid downloading
 # NHDPlus for each state. The selected layer is spatially filtered at the GDAL
 # source before it is read. Leave unset to retain the NLDI download behavior.
-nhdplus_gdb_path <- Sys.getenv("WATERAT_NHDPLUS_GDB", unset = "")
-nhdplus_layer <- Sys.getenv("WATERAT_NHDPLUS_LAYER", unset = "NHDFlowline_Network")
+nhdplus_gdb_path <- Sys.getenv("WATERRAT_NHDPLUS_GDB", unset = "")
+nhdplus_layer <- Sys.getenv("WATERRAT_NHDPLUS_LAYER", unset = "NHDFlowline_Network")
 
 controller_compute <- crew::crew_controller_local(
   name = "compute",
@@ -38,7 +38,7 @@ controller <- crew::crew_controller_group(
 
 tar_option_set(
   packages = c(
-    "WateRAT",
+    "WaterRAT",
     "nhdplusTools",
     "dplyr",
     "purrr",
@@ -228,7 +228,6 @@ tar_target(state_water_rights_final_joined, adding_intersecting_flows %>%
 
 
 list(targets)
-
 
 
 

@@ -10,7 +10,7 @@ standardize_mt_water_rights(pods)
 \item{pods}{An \code{sf} object from Montana's \code{WRQS_PODS} layer.}
 }
 \value{
-Canonical WateRAT water-right records.
+Canonical WaterRAT water-right records.
 }
 \description{
 Standardize Montana water rights

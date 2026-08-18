@@ -1,6 +1,6 @@
 # State adapters
 
-WateRAT analyzes a single canonical water-right schema. State data must be
+WaterRAT analyzes a single canonical water-right schema. State data must be
 converted to this schema before it enters `fs_logic()` or
 `capture_sites_within()`; those utilities do not contain state-specific field
 names or conversions.
@@ -82,12 +82,12 @@ prepare_smoke_test()
 Then start a fresh R session and run the pipeline in smoke mode:
 
 ```r
-Sys.setenv(WATERAT_RUN_MODE = "smoke")
+Sys.setenv(WATERRAT_RUN_MODE = "smoke")
 targets::tar_destroy()
 targets::tar_make()
 ```
 
 Use `tar_visnetwork()` or `tar_progress()` to inspect the two compact state
-branches. Set `WATERAT_RUN_MODE` back to `"full"` and call `tar_destroy()`
+branches. Set `WATERRAT_RUN_MODE` back to `"full"` and call `tar_destroy()`
 before switching back to the full pipeline; the state input paths differ by
 mode.

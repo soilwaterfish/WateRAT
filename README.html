@@ -355,9 +355,9 @@ display: none;
 <hr />
 <p>output: github_document always_allow_html: true ———————–</p>
 <!-- README.md is generated from README.Rmd. Please edit README.Rmd -->
-<div id="wrqur" class="section level1">
-<h1>wrqur</h1>
-<p>Water Rights Quantification/Uses for R (<code>wrqur</code>) provides
+<div id="waterrat" class="section level1">
+<h1>WaterRAT</h1>
+<p>Water Rights Allocation Tool for R (<code>WaterRAT</code>) provides
 methods for retrieving and analyzing water allocation and modeled
 streamflow data.</p>
 <p>The package uses Montana <a href="https://ftpgeoinfo.msl.mt.gov/Data/Spatial/NonMSDI/DNRC_WR/MTWaterRights.gdb.zip">Points
@@ -373,10 +373,10 @@ individual stream reaches are processed as dynamic <code>targets</code>
 branches.</p>
 <div id="installation" class="section level2">
 <h2>Installation</h2>
-<p>Install the development version of <code>wrqur</code> from GitHub
+<p>Install the development version of <code>WaterRAT</code> from GitHub
 with:</p>
 <pre class="r"><code># install.packages(&quot;devtools&quot;)
-devtools::install_github(&quot;soilwaterfish/wrqur&quot;)</code></pre>
+devtools::install_github(&quot;soilwaterfish/WaterRAT&quot;)</code></pre>
 <p>To run the development pipeline, install the workflow packages if
 needed:</p>
 <pre class="r"><code>install.packages(c(
@@ -385,7 +385,7 @@ needed:</p>
   &quot;crew&quot;
 ))</code></pre>
 <p>The remaining spatial and data-processing dependencies are installed
-with <code>wrqur</code> or can be installed separately if needed.</p>
+with <code>WaterRAT</code> or can be installed separately if needed.</p>
 </div>
 <div id="methods" class="section level2">
 <h2>Methods</h2>
@@ -535,7 +535,7 @@ library(crew)
 # Configure packages loaded on workers and the parallel worker pool.
 tar_option_set(
   packages = c(
-    &quot;wrqur&quot;,
+    &quot;WaterRAT&quot;,
     &quot;nhdplusTools&quot;,
     &quot;dplyr&quot;,
     &quot;sf&quot;
