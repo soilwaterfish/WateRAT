@@ -150,44 +150,56 @@ x <- x %>% dplyr::mutate(intersecting_sites = stringr::str_c(record_ids[!is.na(r
 }
 
 
-#' Clean dates
+#' Filter Montana PODs to a diversion month and retain the reported dates
 #'
-#' @param data A previously created joined POU and POD object.
+#' Montana stores one or more periods in `PERIOD_OF_DIVERSIONS`, such as
+#' `"05/01 to 09/30; 11/01 to 11/30"`. This helper keeps records with a period
+#' overlapping `month` and adds canonical `diversion_start` and `diversion_end`
+#' fields. When several periods overlap the month, their earliest start and
+#' latest end are retained as the reported month-relevant span.
 #'
-#' @return A sf object
+#' @param data A Montana `WRQS_PODS` sf object.
+#' @param month Month number to retain, defaulting to August.
+#' @return An `sf` object with canonical diversion-date fields.
 #' @export
-#'
-date_cleaning <- function(data) {
-  data <- data %>% dplyr::filter(!is.na(PERIOD_OF_DIVERSIONS))
-  char <- data[nchar(data$PERIOD_OF_DIVERSIONS) == max(nchar(data$PERIOD_OF_DIVERSIONS),
-                                                       na.rm = T), ][1, ]$PERIOD_OF_DIVERSIONS
-  char_split <- strsplit(char, ";")[[1]]
-  date_string <- vector()
-  for (i in 1:(length(char_split) * 2)) {
-    if (as.logical(i%%2)) {
-      date_string[[i]] <- paste0("as.Date('2000-08-15') > ",
-                                 paste0("data$date_", 1:(length(char_split) *
-                                                           2))[[i]], " & as.Date('2000-08-15') < ", paste0("data$date_",
-                                                                                                           1:(length(char_split) * 2))[[i + 1]])
-    }
+date_cleaning <- function(data, month = 8L) {
+  if (!inherits(data, "sf") || !"PERIOD_OF_DIVERSIONS" %in% names(data)) {
+    stop("`data` must be an sf object with `PERIOD_OF_DIVERSIONS`.", call. = FALSE)
   }
-  date_string <- date_string[!is.na(date_string)]
-  data <- data %>% tidyr::separate_wider_delim(PERIOD_OF_DIVERSIONS,
-                                               delim = stringr::regex(" to |;"), names = paste0("date_",
-                                                                                                1:(length(char_split) * 2)), too_few = "align_start") %>%
-    dplyr::mutate(dplyr::across(dplyr::starts_with("date_"),
-                                ~dplyr::if_else(is.na(.x), paste0("2000-01-01"),
-                                                paste0("2000-", stringr::str_replace_all(.x,
-                                                                                         "/", "-"))))) %>% dplyr::mutate(dplyr::across(dplyr::starts_with("date_"),
-                                                                                                                                       ~as.Date(.x)))
-  date_logic <- dplyr::tibble(.rows = nrow(data))
-  for (i in 1:length(date_string)) {
-    date_name <- paste0("date", i)
-    date_logic[[date_name]] <- eval(parse(text = date_string[[i]]))
+  month <- as.integer(month)
+  if (length(month) != 1L || is.na(month) || month < 1L || month > 12L) {
+    stop("`month` must be an integer from 1 through 12.", call. = FALSE)
   }
-  date_logic <- date_logic %>% dplyr::rowwise() %>% dplyr::mutate(final_logic = any(dplyr::c_across(everything())))
-  data <- data[date_logic$final_logic, ]
-  data <- sf::st_as_sf(data)
+  month_start <- as.Date(sprintf("2000-%02d-01", month))
+  month_end <- seq(month_start, by = "month", length.out = 2L)[[2L]] - 1L
+  parse_periods <- function(period_text) {
+    if (is.na(period_text) || !nzchar(trimws(period_text))) return(NULL)
+    periods <- trimws(strsplit(period_text, ";", fixed = TRUE)[[1L]])
+    periods <- periods[nzchar(periods)]
+    pairs <- strsplit(periods, "[[:space:]]+to[[:space:]]+", perl = TRUE)
+    pairs <- pairs[lengths(pairs) == 2L]
+    if (!length(pairs)) return(NULL)
+    start <- suppressWarnings(as.Date(paste0("2000-", vapply(pairs, `[[`, character(1), 1L)), format = "%Y-%m/%d"))
+    end <- suppressWarnings(as.Date(paste0("2000-", vapply(pairs, `[[`, character(1), 2L)), format = "%Y-%m/%d"))
+    valid <- !is.na(start) & !is.na(end)
+    if (!any(valid)) return(NULL)
+    start <- start[valid]
+    end <- end[valid]
+    overlaps <- ifelse(
+      start <= end,
+      start <= month_end & end >= month_start,
+      start <= month_end | end >= month_start
+    )
+    if (!any(overlaps)) return(NULL)
+    list(start = format(min(start[overlaps]), "%m/%d"), end = format(max(end[overlaps]), "%m/%d"))
+  }
+  periods <- lapply(as.character(data$PERIOD_OF_DIVERSIONS), parse_periods)
+  keep <- !vapply(periods, is.null, logical(1))
+  data <- data[keep, , drop = FALSE]
+  periods <- periods[keep]
+  data$diversion_start <- vapply(periods, `[[`, character(1), "start")
+  data$diversion_end <- vapply(periods, `[[`, character(1), "end")
+  data
 }
 
 

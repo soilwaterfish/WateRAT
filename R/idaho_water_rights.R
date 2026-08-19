@@ -364,3 +364,107 @@ write_idwr_pods_by_use <- function(pods_by_use, path, layer = "PODRightWaterUses
   sf::write_sf(pods_by_use, path, layer = layer, delete_layer = TRUE, quiet = TRUE)
   invisible(path)
 }
+
+#' Refresh Idaho water rights without re-scraping unchanged POD reports
+#'
+#' Read the current IDWR POD layer, compare its stable identity, report URL,
+#' source status, and location to the Idaho rows already in the combined
+#' prepped cache, and scrape only new or changed POD reports. Unchanged cached
+#' canonical rows are reused before [refresh_network_water_rights()] updates
+#' COMIDs, ownership, and the combined cache.
+#'
+#' @param local_path Path to the IDWR `PODRight` geodatabase.
+#' @param filter_geom Idaho analysis boundary.
+#' @param fs_boundary Forest Service ownership geometry for Idaho.
+#' @param nldi_cache_path State-specific NLDI checkpoint path.
+#' @param cache_path Combined prepped water-right GeoPackage path.
+#' @param month Analysis month.
+#' @param retries Report-request retries for new or changed PODs.
+#' @param layer IDWR source layer name.
+#' @param max_pods Optional maximum number of filtered POD locations to process.
+#'   Intended for small smoke tests; leave `NULL` for a complete refresh.
+#' @param force_rescrape Whether to scrape every currently eligible Idaho POD.
+#'   Use this when IDWR has revised report-page content without changing the
+#'   POD-layer identity or report URL.
+#' @param ... Additional arguments passed to [refresh_network_water_rights()].
+#' @return A list from [refresh_network_water_rights()] with additional
+#'   `scraped_pod_count` and `reused_pod_count` fields.
+#' @export
+refresh_idwr_network_water_rights <- function(
+    local_path, filter_geom, fs_boundary, nldi_cache_path,
+    cache_path = file.path("data", "cache", "prepped", "water_rights.gpkg"),
+    month = 8L, retries = 2L, layer = "PODRight", max_pods = NULL,
+    force_rescrape = FALSE, ...) {
+  pods <- get_idwr_pods(local_path = local_path, filter_geom = filter_geom, layer = layer)
+  if (!is.null(max_pods)) {
+    max_pods <- as.integer(max_pods)
+    if (length(max_pods) != 1L || is.na(max_pods) || max_pods < 1L) {
+      stop("`max_pods` must be one positive integer or NULL.", call. = FALSE)
+    }
+    pods <- pods[seq_len(min(nrow(pods), max_pods)), , drop = FALSE]
+  }
+  key_from_pods <- function(x) {
+    coordinates <- sf::st_coordinates(sf::st_transform(x, 4326))
+    paste(
+      trimws(as.character(x$WaterRightNumber)), as.character(x$PointOfDiversionID),
+      trimws(as.character(x$Status)), trimws(as.character(x$Source)),
+      trimws(as.character(x$WRReport)),
+      format(coordinates[, 1L], digits = 15, trim = TRUE),
+      format(coordinates[, 2L], digits = 15, trim = TRUE), sep = "|"
+    )
+  }
+  cached <- if (file.exists(cache_path)) {
+    all_cached <- tryCatch(read_prepped_water_rights(cache_path), error = function(error) NULL)
+    if (is.null(all_cached)) NULL else all_cached[all_cached$state == "ID", , drop = FALSE]
+  } else {
+    NULL
+  }
+  key_from_cached <- function(x) {
+    coordinates <- sf::st_coordinates(sf::st_transform(x, 4326))
+    paste(
+      trimws(as.character(x$right_id)), as.character(x$site_id),
+      trimws(as.character(x$status)), trimws(as.character(x$source)),
+      trimws(as.character(x$report_url)),
+      format(coordinates[, 1L], digits = 15, trim = TRUE),
+      format(coordinates[, 2L], digits = 15, trim = TRUE), sep = "|"
+    )
+  }
+  pod_key <- key_from_pods(pods)
+  cached_key <- if (is.null(cached)) character() else key_from_cached(cached)
+  unchanged_pod <- !isTRUE(force_rescrape) & pod_key %in% cached_key
+  new_or_changed <- pods[!unchanged_pod, , drop = FALSE]
+  # A POD can yield several canonical Water Uses records. Keep every cached
+  # canonical row for an unchanged POD rather than only the first match.
+  reused <- if (is.null(cached)) pods[0, , drop = FALSE] else cached[cached_key %in% pod_key[unchanged_pod], , drop = FALSE]
+  if (nrow(reused)) {
+    reused <- dplyr::select(reused, -dplyr::any_of(c("comid", "nldi_error", "fs_intersection")))
+  }
+  scraped <- if (nrow(new_or_changed)) {
+    new_or_changed |>
+      expand_idwr_pods_by_use(retries = retries) |>
+      standardize_idwr_water_rights() |>
+      filter_water_rights_month(month = month)
+  } else {
+    NULL
+  }
+  bind_rows <- function(x, y) {
+    x_geometry <- attr(x, "sf_column")
+    y_geometry <- attr(y, "sf_column")
+    if (!identical(x_geometry, y_geometry)) {
+      names(y)[names(y) == y_geometry] <- x_geometry
+      sf::st_geometry(y) <- x_geometry
+    }
+    rbind(x, y)
+  }
+  current <- if (is.null(scraped)) reused else if (!nrow(reused)) scraped else bind_rows(reused, scraped)
+  if (!nrow(current)) {
+    stop("No current Idaho PODs remain after filtering; remove Idaho from the combined cache explicitly.", call. = FALSE)
+  }
+  result <- refresh_network_water_rights(
+    current, fs_boundary = fs_boundary, nldi_cache_path = nldi_cache_path,
+    cache_path = cache_path, ...
+  )
+  result$scraped_pod_count <- nrow(new_or_changed)
+  result$reused_pod_count <- nrow(reused)
+  result
+}

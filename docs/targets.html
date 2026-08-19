@@ -2,11 +2,24 @@
 title: Targets framework
 ---
 
-<p class="section-kicker">Reproducible execution</p><h1>A state-aware targets pipeline</h1><p class="lead">A static <code>tar_map()</code> branch is created per state, with cache-aware rebuilds and separate worker pools for local computation and NLDI work.</p>
-<div class="row g-3 mb-4"><div class="col-md-4"><div class="step-card"><span class="step-number">1</span><h3>Boundary</h3><p>Read a <code>states</code> layer and filter its <code>state_abbr</code>.</p></div></div><div class="col-md-4"><div class="step-card"><span class="step-number">2</span><h3>Inputs</h3><p>Clip FlowMet and ownership data; obtain canonical state POD records.</p></div></div><div class="col-md-4"><div class="step-card"><span class="step-number">3</span><h3>Results</h3><p>Build comparable basin or network allocation outputs.</p></div></div></div>
+<p class="section-kicker">Reproducible execution</p><h1>One prepared layer. One connected network.</h1><p class="lead">State-specific preparation happens before this pipeline. A dedicated prep script maintains the cache; this analysis script reads one combined, validated POD GeoPackage and routes allocations through one NHDPlus network, so allocation can continue across the states represented in the cache.</p>
+<div class="row g-3 mb-4"><div class="col-md-4"><div class="step-card"><span class="step-number">1</span><h3>Prepare by state</h3><p>Run <code>prep_targets.R</code> to filter, scrape incrementally, standardize, assign COMIDs, and classify FS/private ownership.</p></div></div><div class="col-md-4"><div class="step-card"><span class="step-number">2</span><h3>Upsert one cache</h3><p>The prep cache replaces only the refreshed state in <code>water_rights.gpkg</code>.</p></div></div><div class="col-md-4"><div class="step-card"><span class="step-number">3</span><h3>Route all states</h3><p><code>_targets.R</code> reads the combined simple-feature layer, builds one network, and accumulates across state borders.</p></div></div></div>
+<h2>The handoff to targets</h2>
+<div class="table-responsive"><table class="table"><thead><tr><th>Artifact</th><th>Contains</th><th>Why it matters</th></tr></thead><tbody><tr><td><code>data/cache/prepped/water_rights.gpkg</code><br><code>water_rights_prepped</code> layer</td><td>All prepared state PODs, canonical fields, <code>comid</code>, <code>nldi_error</code>, and <code>fs_intersection</code></td><td>One multi-state <code>sf</code> input. Updating Idaho does not require re-scraping, re-indexing, or re-intersecting Montana.</td></tr><tr><td><code>data/cache/nldi/&lt;state&gt;.rds</code></td><td>Checkpointed POD-to-COMID lookups</td><td>Resume or refresh a state without repeating successful NLDI calls.</td></tr></tbody></table></div>
+<pre><code># Update external state data without rebuilding the routing pipeline.
+targets::tar_make(script = "prep_targets.R", store = "_targets_prep")
+
+# After preparation has updated water_rights.gpkg, route the connected network.
+targets::tar_make()
+
+# The main in-memory product is one multi-state sf network.
+targets::tar_read(network_allocation)
+
+# The same result is written locally as a review GeoPackage.
+targets::tar_read(network_allocation_gpkg)</code></pre>
 <div class="table-responsive"><table class="table"><thead><tr><th>Pool</th><th>Full mode</th><th>Smoke mode</th><th>Role</th></tr></thead><tbody><tr><td><code>compute</code></td><td>88</td><td>2</td><td>Local spatial and data processing</td></tr><tr><td><code>nldi</code></td><td>8</td><td>2</td><td>Rate-limited NLDI work</td></tr></tbody></table></div>
 <pre><code>targets::tar_make()
 targets::tar_visnetwork()
 targets::tar_outdated()
 targets::tar_progress()</code></pre>
-<div class="callout">The established basin path remains the validation baseline. The network functions are developed alongside it so both approaches can be compared on the same reporting lines.</div>
+<div class="callout"><strong>Annual refresh pattern.</strong> Run <code>targets::tar_make(script = "prep_targets.R", store = "_targets_prep")</code> only when source data need refreshing. Idaho reuses stable report scrapes; Montana reuses candidate POD COMIDs before choosing its downstream-most site; every state checkpoint reuses COMIDs only for unchanged POD locations. Then run <code>targets::tar_make()</code>; routing is recomputed as one network so downstream effects—including those across a state border—are included consistently.</div>

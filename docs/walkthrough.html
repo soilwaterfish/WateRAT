@@ -4,7 +4,7 @@ title: Small-scale walkthrough
 
 <p class="section-kicker">Learn by running it</p>
 <h1>Walk through two small basins before scaling up.</h1>
-<p class="lead">This package includes one Montana and one Idaho basin plus their clipped NHDPlus routing network. Use them to inspect each function's input and output before moving the same logic into <code>_targets.R</code>.</p>
+<p class="lead">This package includes one Montana and one Idaho basin plus their clipped NHDPlus routing network. Use them to inspect each function's input and output before moving state preparation into <code>prep_targets.R</code> and connected routing into <code>_targets.R</code>.</p>
 
 <div class="callout"><strong>What ships with WaterRAT.</strong> <code>pod_example_basins.gpkg</code> contains the two labeled AOIs and <code>NHDFlowline_Network</code>. Water-right source data, FlowMet, and ownership data remain local authoritative inputs.</div>
 
@@ -96,4 +96,4 @@ final_join &lt;- format_capture_sites_output(
 )
 
 sf::write_sf(final_join, "data/pod_example_final.gpkg", delete_dsn = TRUE)</code></pre>
-<p>For validation, run the established NLDI-basin path for the same AOI and compare the final allocation fields. Once the small result agrees with expectations, encode the same steps in the <a href="{{ '/targets/' | relative_url }}">Targets framework</a>.</p>
+<p>For validation, run the established NLDI-basin path for the same AOI and compare the final allocation fields. Once the small result agrees with expectations, encode the state-specific preparation in <code>prep_targets.R</code>, then use the <a href="{{ '/targets/' | relative_url }}">Targets framework</a> to route the combined prepared layer.</p>

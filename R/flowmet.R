@@ -22,12 +22,24 @@ get_flowmet <- function(filter_geom = NULL, layer, local_path) {
     query = paste0("SELECT * FROM ", layer, " LIMIT 0"),
     quiet = TRUE
   )
+  # Some local FlowMet GeoPackages omit CRS metadata even though their
+  # coordinates are supplied in WGS84. Retain that established convention so
+  # the WKT spatial filter can still avoid reading the national layer.
+  if (is.na(sf::st_crs(layer_schema))) {
+    layer_schema <- sf::st_set_crs(layer_schema, 4326)
+  }
   filter_geom <- sf::st_transform(filter_geom, sf::st_crs(layer_schema))
   flowmet <- sf::read_sf(
     local_path, layer = layer,
     wkt_filter = sf::st_as_text(sf::st_union(filter_geom)),
-    quiet = TRUE
+    quiet = TRUE,
+    # FlowMet is distributed as a 3D MULTICURVE GeoPackage layer. Reading it
+    # as line geometry avoids a tibble/sf conversion failure in newer sf.
+    type = 2L
   )
+  if (is.na(sf::st_crs(flowmet))) {
+    flowmet <- sf::st_set_crs(flowmet, 4326)
+  }
   filter_geom <- sf::st_transform(filter_geom, sf::st_crs(flowmet))
   flowmet[lengths(sf::st_intersects(flowmet, filter_geom)) > 0L, , drop = FALSE]
 }

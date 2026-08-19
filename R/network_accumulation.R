@@ -22,15 +22,23 @@ index_water_right_comids <- function(water_rights, cache_path = NULL, workers = 
                                      quiet = FALSE) {
   validate_water_rights(water_rights)
   points <- sf::st_transform(water_rights, 4326)
-  required <- c("record_id", "comid", "nldi_error")
+  location_key <- paste(
+    points$record_id,
+    format(sf::st_coordinates(points)[, 1L], digits = 15, trim = TRUE),
+    format(sf::st_coordinates(points)[, 2L], digits = 15, trim = TRUE),
+    sep = "|"
+  )
+  required <- c("record_id", "location_key", "comid", "nldi_error")
   cached <- data.frame(
-    record_id = character(), comid = character(), nldi_error = character(),
+    record_id = character(), location_key = character(), comid = character(), nldi_error = character(),
     stringsAsFactors = FALSE
   )
+  empty_cache <- cached
   if (!is.null(cache_path) && file.exists(cache_path)) {
     cached <- readRDS(cache_path)
     if (length(setdiff(required, names(cached)))) {
-      stop("`cache_path` does not contain a compatible NLDI index.", call. = FALSE)
+      if (!quiet) message("Ignoring a legacy NLDI cache without location keys.")
+      cached <- empty_cache
     }
     if (!identical(attr(cached, "nldi_endpoint"), "hydrolocation")) {
       if (!quiet) message("Ignoring a cache created with a different NLDI endpoint.")
@@ -55,7 +63,12 @@ index_water_right_comids <- function(water_rights, cache_path = NULL, workers = 
   if (length(retries) != 1L || is.na(retries) || retries < 0L) {
     stop("`retries` must be a non-negative integer.", call. = FALSE)
   }
-  pending <- which(!points$record_id %in% cached$record_id | !is.na(cached$nldi_error[match(points$record_id, cached$record_id)]))
+  cached_match <- match(points$record_id, cached$record_id)
+  pending <- which(
+    is.na(cached_match) |
+      cached$location_key[cached_match] != location_key |
+      !is.na(cached$nldi_error[cached_match])
+  )
   if (!quiet) message("Indexing ", length(pending), " of ", nrow(points), " POD records with NLDI.")
   lookup_one <- function(i) {
     last_error <- NULL
@@ -63,6 +76,7 @@ index_water_right_comids <- function(water_rights, cache_path = NULL, workers = 
       result <- tryCatch(
         data.frame(
           record_id = points$record_id[[i]],
+          location_key = location_key[[i]],
           comid = nldi_comid_function(points[i, ])$comid[[1L]],
           nldi_error = NA_character_, stringsAsFactors = FALSE
         ),
@@ -75,7 +89,7 @@ index_water_right_comids <- function(water_rights, cache_path = NULL, workers = 
       }
     }
     data.frame(
-      record_id = points$record_id[[i]], comid = NA_character_,
+      record_id = points$record_id[[i]], location_key = location_key[[i]], comid = NA_character_,
       nldi_error = conditionMessage(last_error), stringsAsFactors = FALSE
     )
   }
@@ -95,7 +109,7 @@ index_water_right_comids <- function(water_rights, cache_path = NULL, workers = 
   cached <- cached[!duplicated(cached$record_id, fromLast = TRUE), , drop = FALSE]
   attr(cached, "nldi_endpoint") <- "hydrolocation"
   if (!is.null(cache_path)) saveRDS(cached, cache_path)
-  cached[match(points$record_id, cached$record_id), required, drop = FALSE]
+  cached[match(points$record_id, cached$record_id), c("record_id", "comid", "nldi_error"), drop = FALSE]
 }
 
 #' Aggregate local water-right allocations by COMID
@@ -110,6 +124,7 @@ aggregate_local_allocations <- function(water_rights, comid_index) {
   if (length(setdiff(required, names(comid_index)))) {
     stop("`comid_index` must contain record_id and comid.", call. = FALSE)
   }
+  if (inherits(comid_index, "sf")) comid_index <- sf::st_drop_geometry(comid_index)
   water_rights <- dplyr::select(water_rights, -dplyr::any_of(setdiff(required, "record_id")))
   joined <- dplyr::inner_join(water_rights, comid_index[, required], by = "record_id")
   joined <- dplyr::filter(joined, !is.na(.data$comid))
@@ -235,7 +250,7 @@ format_capture_sites_output <- function(accumulated_network, flowmet) {
   flowmet <- sf::st_drop_geometry(flowmet)
   flowmet$comid <- as.character(flowmet$comid)
   keep <- c(
-    "comid", "qe_08", attr(accumulated_network, "sf_column"),
+    "comid", attr(accumulated_network, "sf_column"),
     grep("^cumulative_intersecting_flow_", names(accumulated_network), value = TRUE)
   )
   accumulated_network <- accumulated_network[, unique(keep), drop = FALSE]
