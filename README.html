@@ -604,7 +604,6 @@ targets &lt;- tar_map(
       layer = &quot;mean_summer_flow_historical_hires&quot;,
       local_path = &quot;data/flowmet.gpkg&quot;
     ) %&gt;%
-      sf::read_sf() %&gt;%
       sf::st_zm() %&gt;%
       sf::st_cast(&quot;LINESTRING&quot;) %&gt;%
       sf::st_set_crs(4326) %&gt;%
@@ -658,7 +657,6 @@ targets &lt;- tar_map(
       layer = &quot;WRQS_PODS&quot;,
       local_path = &quot;data/WRQS_Dataset_GDB.gdb&quot;
     ) %&gt;%
-      sf::read_sf() %&gt;%
       dplyr::group_by(WRKEY) %&gt;%
       dplyr::slice(1) %&gt;%
       dplyr::ungroup()

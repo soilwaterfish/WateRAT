@@ -382,7 +382,6 @@ targets <- tar_map(
       layer = "mean_summer_flow_historical_hires",
       local_path = "data/flowmet.gpkg"
     ) %>%
-      sf::read_sf() %>%
       sf::st_zm() %>%
       sf::st_cast("LINESTRING") %>%
       sf::st_set_crs(4326) %>%

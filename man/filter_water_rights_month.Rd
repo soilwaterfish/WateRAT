@@ -19,11 +19,13 @@ filter_water_rights_month(
 or end diversion date.}
 }
 \value{
-An \code{sf} subset of \code{water_rights}.
+An \code{sf} subset of \code{water_rights} with one row per state/POD.
 }
 \description{
-Retain records whose diversion period includes the 15th day of \code{month}.
-This selects the correct authorized rate from month-by-month records while
-retaining annual records. Records without a reported diversion period are
-retained by default because their period cannot be determined.
+Retain records whose diversion period overlaps \code{month}, then return one row
+per state/POD. When a right reports multiple within-month periods at the same
+POD, its numeric rates are represented by their simple mean. This prevents
+half-month or other segmented Idaho Water Uses rows from becoming duplicate
+diversion sites. Records without a reported diversion period are retained by
+default because their period cannot be determined.
 }

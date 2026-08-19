@@ -4,6 +4,19 @@ title: Setup and local data
 
 <p class="section-kicker">Get started</p><h1>Set up a local analysis workspace</h1><p class="lead">WaterRAT version-controls code and documentation—not large source datasets or derived results.</p>
 <div class="row g-3 my-4"><div class="col-md-4"><div class="step-card"><span class="step-number">1</span><h3>Install</h3><pre><code>remotes::install_github("soilwaterfish/WaterRAT")</code></pre></div></div><div class="col-md-4"><div class="step-card"><span class="step-number">2</span><h3>Place data locally</h3><p>Keep geodatabases, GeoPackages, caches, and scratch work beneath ignored <code>data/</code> and <code>dev/</code> paths.</p></div></div><div class="col-md-4"><div class="step-card"><span class="step-number">3</span><h3>Run a check</h3><pre><code>WATERRAT_RUN_MODE=smoke Rscript -e 'targets::tar_make()'</code></pre></div></div></div>
-<h2>Required local inputs</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Input</th><th>Used for</th><th>Repository rule</th></tr></thead><tbody><tr><td>Montana WRQS geodatabase</td><td><code>WRQS_PODS</code> records</td><td>Local only</td></tr><tr><td>Idaho IDWR geodatabase</td><td><code>PODRight</code> records</td><td>Local only</td></tr><tr><td>FlowMet GeoPackage</td><td><code>maug_hist</code> flow</td><td>Local only</td></tr><tr><td>States and ownership layers</td><td>Extent and FS/private split</td><td>Local only</td></tr></tbody></table></div>
+<h2>Required local inputs</h2>
+<div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th>Input</th><th>Used for</th><th>Dataset source</th><th>Repository rule</th></tr></thead>
+    <tbody>
+      <tr><td>Montana WRQS geodatabase</td><td><code>WRQS_PODS</code> records</td><td><a href="https://opendata-mtdnrc.hub.arcgis.com/maps/edf5bfa459304c3bb8af3361b21e92f2/about" target="_blank" rel="noopener">Montana DNRC WRQS ↗</a></td><td>Local only</td></tr>
+      <tr><td>Idaho IDWR POD geodatabase</td><td><code>PODRight</code> records</td><td><a href="https://data-idwr.hub.arcgis.com/datasets/f0b37d653f8249a4945d61bdb98dc4a7_0/explore?location=45.487555%2C-114.096317%2C5" target="_blank" rel="noopener">Idaho IDWR PODs ↗</a></td><td>Local only</td></tr>
+      <tr><td>NHDPlus v2.1 national geodatabase</td><td><code>NHDFlowline_Network</code> routing and COMID attributes</td><td><a href="https://dmap-data-commons-ow.s3.amazonaws.com/NHDPlusV21/Data/NationalData/NHDPlusV21_NationalData_Seamless_Geodatabase_Lower48_07.7z" target="_blank" rel="noopener">NHDPlus Lower 48 download ↗</a></td><td>Local only</td></tr>
+      <tr><td>FlowMet GeoPackage</td><td><code>maug_hist</code> flow</td><td><a href="https://data.fs.usda.gov/geodata/edw/datasets.php?xmlKeyword=hydro+flow+metric" target="_blank" rel="noopener">USFS hydro flow metrics ↗</a></td><td>Local only</td></tr>
+      <tr><td>Forest Service ownership boundaries</td><td>FS/private split</td><td><a href="https://data.fs.usda.gov/geodata/edw/datasets.php?dsetCategory=boundaries" target="_blank" rel="noopener">USFS boundaries ↗</a></td><td>Local only</td></tr>
+      <tr><td>State boundaries</td><td>Analysis extent</td><td>Authoritative state-boundary source</td><td>Local only</td></tr>
+    </tbody>
+  </table>
+</div>
 <div class="callout callout-warning"><strong>Build Idaho deliberately.</strong> Idaho Water Uses require a report-page scrape. Create the canonical cache before a full targets run instead of scraping during ordinary rebuilds.</div>
 <pre><code>cache_idwr_water_rights(local_path = "data/idwr.gdb", filter_geom = idaho_boundary, cache_path = "data/idaho_water_rights.gpkg")</code></pre>

@@ -2,6 +2,7 @@
 .idwr_excluded_sources <- c(
   "GROUND WATER", "WASTE DITCH", "WASTE WATER", "WASTEWATER", "SEEPAGE"
 )
+.idwr_excluded_diversion_types <- "B"
 
 #' Get filtered Idaho points of diversion
 #'
@@ -21,12 +22,17 @@
 #'   records. Matching is case-insensitive.
 #' @param exclude_status Optional status name or vector of status names to
 #'   exclude. Matching is case-insensitive.
+#' @param exclude_diversion_type Optional IDWR `DiversionType` code or codes to
+#'   exclude. Defaults to `"B"` (Beginning of Stream Flow), retaining Ending
+#'   of Stream Flow and ordinary point locations.
 #' @param layer Layer name in `local_path`.
 #' @return An `sf` object of filtered PODs.
 #' @export
 get_idwr_pods <- function(local_path, filter_geom = NULL, source = NULL,
                           status = "Active", exclude_source = .idwr_excluded_sources,
-                          exclude_status = NULL, layer = "PODRight") {
+                          exclude_status = NULL,
+                          exclude_diversion_type = .idwr_excluded_diversion_types,
+                          layer = "PODRight") {
   pods <- sf::read_sf(local_path, layer = layer, quiet = TRUE)
 
   if (!is.null(filter_geom)) {
@@ -44,6 +50,15 @@ get_idwr_pods <- function(local_path, filter_geom = NULL, source = NULL,
   }
   if (!is.null(exclude_status)) {
     pods <- pods[!toupper(trimws(pods$Status)) %in% toupper(trimws(exclude_status)), , drop = FALSE]
+  }
+  if (!is.null(exclude_diversion_type)) {
+    if (!"DiversionType" %in% names(pods)) {
+      stop("`", layer, "` is missing the IDWR `DiversionType` field.", call. = FALSE)
+    }
+    pods <- pods[
+      !toupper(trimws(pods$DiversionType)) %in% toupper(trimws(exclude_diversion_type)),
+      , drop = FALSE
+    ]
   }
   pods
 }

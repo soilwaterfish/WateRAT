@@ -2,16 +2,18 @@
 % Please edit documentation in R/water_right_schema.R
 \name{standardize_mt_water_rights}
 \alias{standardize_mt_water_rights}
-\title{Standardize Montana water rights}
+\title{Standardize selected Montana water rights}
 \usage{
 standardize_mt_water_rights(pods)
 }
 \arguments{
-\item{pods}{An \code{sf} object from Montana's \code{WRQS_PODS} layer.}
+\item{pods}{Selected \code{WRQS_PODS} records, one per \code{WRKEY}.}
 }
 \value{
 Canonical WaterRAT water-right records.
 }
 \description{
-Standardize Montana water rights
+Montana's public water-right number (\code{WR_NUMBER}) identifies the right and
+\code{WRKEY} identifies the site-level record. Input must first be reduced to one
+downstream-most POD per \code{WRKEY} with \code{\link[=select_mt_downstream_pods]{select_mt_downstream_pods()}}.
 }

@@ -78,6 +78,23 @@ test_that("standard Idaho exclusions remove non-surface source categories", {
   expect_equal(retained, "SPRING")
 })
 
+test_that("Idaho reader retains ending stream-flow locations by default", {
+  pods <- sf::st_as_sf(
+    data.frame(
+      Source = rep("SPRING", 3), Status = rep("Active", 3),
+      DiversionType = c("B", "E", NA_character_), WRReport = c("one", "two", "three"),
+      x = 0:2, y = 0
+    ),
+    coords = c("x", "y"), crs = 4326
+  )
+  path <- tempfile(fileext = ".gpkg")
+  sf::write_sf(pods, path, layer = "PODRight", quiet = TRUE)
+
+  retained <- get_idwr_pods(path, status = NULL, exclude_source = NULL)
+
+  expect_equal(retained$DiversionType, c("E", NA_character_))
+})
+
 test_that("Idaho records standardize to the canonical schema", {
   raw <- sf::st_as_sf(
     data.frame(

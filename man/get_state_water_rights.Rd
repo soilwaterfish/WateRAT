@@ -4,7 +4,14 @@
 \alias{get_state_water_rights}
 \title{Get canonical water rights for a state}
 \usage{
-get_state_water_rights(state, filter_geom, local_path, ...)
+get_state_water_rights(
+  state,
+  filter_geom,
+  local_path,
+  comid_index = NULL,
+  network = NULL,
+  ...
+)
 }
 \arguments{
 \item{state}{Two-letter state abbreviation.}
@@ -12,6 +19,12 @@ get_state_water_rights(state, filter_geom, local_path, ...)
 \item{filter_geom}{\code{sf} geometry used to filter points of diversion.}
 
 \item{local_path}{State water-right dataset path.}
+
+\item{comid_index}{For Montana, NLDI COMID assignments created from
+\code{\link[=standardize_mt_pod_candidates]{standardize_mt_pod_candidates()}}.}
+
+\item{network}{For Montana, NHDPlus flowlines with \code{comid} and \code{hydroseq}
+used to retain the downstream-most POD per \code{WRKEY}.}
 
 \item{...}{State-specific retrieval arguments passed to the adapter.}
 }

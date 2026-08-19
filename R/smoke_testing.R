@@ -61,7 +61,8 @@ prepare_smoke_test <- function(
   )
   id_pods <- id_candidates[
     toupper(trimws(id_candidates$Status)) == "ACTIVE" &
-      toupper(trimws(id_candidates$Source)) != "GROUND WATER",
+      toupper(trimws(id_candidates$Source)) != "GROUND WATER" &
+      !toupper(trimws(id_candidates$DiversionType)) %in% .idwr_excluded_diversion_types,
     , drop = FALSE
   ]
   id_pods <- sample_rows(id_pods, sites_per_state)

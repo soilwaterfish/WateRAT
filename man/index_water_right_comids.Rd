@@ -8,6 +8,8 @@ index_water_right_comids(
   water_rights,
   cache_path = NULL,
   workers = 1L,
+  throttle_seconds = 0.5,
+  retries = 3L,
   quiet = FALSE
 )
 }
@@ -18,9 +20,15 @@ index_water_right_comids(
 unsuccessful lookups are reused and the result is saved after each
 indexing batch, so a long indexing run can be resumed.}
 
-\item{workers}{Number of concurrent NLDI point-index requests. Use a small
-value (for example, 4) to avoid overwhelming the public service. On
-Windows, requests run sequentially because \code{mclapply()} is unavailable.}
+\item{workers}{Number of concurrent NLDI point-index requests. Values above
+2 are capped to protect the public service. On Windows, requests run
+sequentially because \code{mclapply()} is unavailable.}
+
+\item{throttle_seconds}{Pause between request batches. With the default one
+worker, this is the minimum pause between requests.}
+
+\item{retries}{Number of retries for a failed NLDI request. Retries use
+exponential backoff and unresolved errors remain in \code{nldi_error}.}
 
 \item{quiet}{Whether to suppress progress messages.}
 }

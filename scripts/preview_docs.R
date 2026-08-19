@@ -33,6 +33,7 @@ render_page <- function(path, layout, site_title, site_description) {
     "{{ '/setup/' | relative_url }}" = "setup.html",
     "{{ '/filters/' | relative_url }}" = "filters.html",
     "{{ '/schema/' | relative_url }}" = "schema.html",
+    "{{ '/walkthrough/' | relative_url }}" = "walkthrough.html",
     "{{ '/targets/' | relative_url }}" = "targets.html",
     "{{ '/network/' | relative_url }}" = "network.html",
     "{{ '/output-gpkg/' | relative_url }}" = "output-gpkg.html",

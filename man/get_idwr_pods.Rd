@@ -11,6 +11,7 @@ get_idwr_pods(
   status = "Active",
   exclude_source = .idwr_excluded_sources,
   exclude_status = NULL,
+  exclude_diversion_type = .idwr_excluded_diversion_types,
   layer = "PODRight"
 )
 }
@@ -31,6 +32,10 @@ records. Matching is case-insensitive.}
 
 \item{exclude_status}{Optional status name or vector of status names to
 exclude. Matching is case-insensitive.}
+
+\item{exclude_diversion_type}{Optional IDWR \code{DiversionType} code or codes to
+exclude. Defaults to \code{"B"} (Beginning of Stream Flow), retaining Ending
+of Stream Flow and ordinary point locations.}
 
 \item{layer}{Layer name in \code{local_path}.}
 }

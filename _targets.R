@@ -100,7 +100,6 @@ tar_target(admin_int, suppressMessages(sf::read_sf(file.path("data", "admin.shp"
 tar_target(flowmet_intersect, get_flowmet(filter_geom = state_boundary,
                                           layer = 'mean_summer_flow_historical_hires',
                                           local_path = file.path("data", "flowmet.gpkg"))  %>%
-             sf::read_sf()%>%
              sf::st_zm() %>%
              sf::st_cast('LINESTRING') %>%
              sf::st_set_crs(4326) %>%
@@ -127,6 +126,51 @@ tar_target(flowmet_join_nhdplus, flowmet_intersect %>% dplyr::select(maug_hist, 
                        dplyr::mutate(comid = as.character(comid)), by = c('comid' = 'comid'))
 ),
 
+# Montana's WRKEY can contain several physical PODs. Index only the repeated
+# groups, then retain the downstream-most one before assigning WRKEY as the
+# canonical site identifier.
+tar_target(
+  mt_pods,
+  if (state_code == "MT") {
+    get_mtwr(
+      filter_geom = state_boundary,
+      layer = "WRQS_PODS",
+      local_path = water_right_path
+    ) |>
+      date_cleaning()
+  } else {
+    NULL
+  }
+),
+
+tar_target(
+  mt_pod_candidates,
+  if (state_code == "MT") {
+    repeated <- duplicated(mt_pods$WRKEY) | duplicated(mt_pods$WRKEY, fromLast = TRUE)
+    standardize_mt_pod_candidates(mt_pods[repeated, , drop = FALSE])
+  } else {
+    NULL
+  }
+),
+
+tar_target(
+  mt_pod_comid_index,
+  if (state_code == "MT") {
+    index_water_right_comids(
+      mt_pod_candidates,
+      cache_path = file.path("data", paste0("mt_pod_comids_", run_mode, ".rds")),
+      workers = 1L,
+      throttle_seconds = 0.5,
+      retries = 3L
+    )
+  } else {
+    NULL
+  },
+  resources = tar_resources(
+    crew = tar_resources_crew(controller = "nldi")
+  )
+),
+
 tar_target(
   state_water_rights,
   if (state_code == "ID") {
@@ -143,11 +187,8 @@ tar_target(
     validate_water_rights(cached_water_rights)
     cached_water_rights
   } else {
-    get_state_water_rights(
-      state = state_code,
-      filter_geom = state_boundary,
-      local_path = water_right_path
-    )
+    select_mt_downstream_pods(mt_pods, mt_pod_comid_index, nhdplus) |>
+      standardize_mt_water_rights()
   }
 ),
 
@@ -228,8 +269,6 @@ tar_target(state_water_rights_final_joined, adding_intersecting_flows %>%
 
 
 list(targets)
-
-
 
 
 

@@ -42,3 +42,15 @@ test_that("the shipped basin fixture exercises the local NHDPlus reader", {
   expect_true(all(c("comid", "hydroseq", "dnhydroseq", "streamorde", "qe_08") %in% names(result)))
   expect_true(all(sf::st_is_valid(result)))
 })
+
+test_that("the two-state basin fixture supports a small-scale walkthrough", {
+  fixture <- testthat::test_path("..", "..", "inst", "extdata", "pod_example_basins.gpkg")
+  basins <- sf::read_sf(fixture, layer = "pod_example_basins", quiet = TRUE)
+
+  network <- read_nhdplus_flowlines(fixture, basins)
+
+  expect_equal(basins$state_code, c("MT", "ID"))
+  expect_equal(basins$example_basin, c("montana", "idaho"))
+  expect_equal(nrow(network), 1551)
+  expect_true(all(c("comid", "hydroseq", "dnhydroseq", "streamorde", "qe_08") %in% names(network)))
+})

@@ -167,6 +167,32 @@ body {
   padding: 1rem;
 }
 
+.docs-content pre.code-block {
+  padding-top: 3.25rem;
+  position: relative;
+}
+
+.code-copy {
+  background: rgb(255 255 255 / 12%);
+  border: 1px solid rgb(255 255 255 / 38%);
+  border-radius: .35rem;
+  color: #fff;
+  font-size: .78rem;
+  line-height: 1.2;
+  padding: .35rem .55rem;
+  position: absolute;
+  right: .65rem;
+  top: .65rem;
+}
+
+.code-copy:hover,
+.code-copy:focus-visible,
+.code-copy.copied {
+  background: #d9f0ea;
+  border-color: #d9f0ea;
+  color: #075f60;
+}
+
 .docs-content code {
   color: #a3355f;
 }

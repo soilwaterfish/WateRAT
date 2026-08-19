@@ -7,13 +7,19 @@
 #' @param cache_path Optional `.rds` checkpoint path. Existing successful or
 #'   unsuccessful lookups are reused and the result is saved after each
 #'   indexing batch, so a long indexing run can be resumed.
-#' @param workers Number of concurrent NLDI point-index requests. Use a small
-#'   value (for example, 4) to avoid overwhelming the public service. On
-#'   Windows, requests run sequentially because `mclapply()` is unavailable.
+#' @param workers Number of concurrent NLDI point-index requests. Values above
+#'   2 are capped to protect the public service. On Windows, requests run
+#'   sequentially because `mclapply()` is unavailable.
+#' @param throttle_seconds Pause between request batches. With the default one
+#'   worker, this is the minimum pause between requests.
+#' @param retries Number of retries for a failed NLDI request. Retries use
+#'   exponential backoff and unresolved errors remain in `nldi_error`.
 #' @param quiet Whether to suppress progress messages.
 #' @return A data frame with `record_id`, `comid`, and `nldi_error`.
 #' @export
-index_water_right_comids <- function(water_rights, cache_path = NULL, workers = 1L, quiet = FALSE) {
+index_water_right_comids <- function(water_rights, cache_path = NULL, workers = 1L,
+                                     throttle_seconds = 0.5, retries = 3L,
+                                     quiet = FALSE) {
   validate_water_rights(water_rights)
   points <- sf::st_transform(water_rights, 4326)
   required <- c("record_id", "comid", "nldi_error")
@@ -38,25 +44,52 @@ index_water_right_comids <- function(water_rights, cache_path = NULL, workers = 
   if (length(workers) != 1L || is.na(workers) || workers < 1L) {
     stop("`workers` must be a positive integer.", call. = FALSE)
   }
+  if (workers > 2L) {
+    if (!quiet) message("Capping NLDI workers at 2 to avoid overloading the public service.")
+    workers <- 2L
+  }
+  if (length(throttle_seconds) != 1L || is.na(throttle_seconds) || throttle_seconds < 0) {
+    stop("`throttle_seconds` must be one non-negative number.", call. = FALSE)
+  }
+  retries <- as.integer(retries)
+  if (length(retries) != 1L || is.na(retries) || retries < 0L) {
+    stop("`retries` must be a non-negative integer.", call. = FALSE)
+  }
   pending <- which(!points$record_id %in% cached$record_id | !is.na(cached$nldi_error[match(points$record_id, cached$record_id)]))
   if (!quiet) message("Indexing ", length(pending), " of ", nrow(points), " POD records with NLDI.")
   lookup_one <- function(i) {
-    tryCatch(
-      data.frame(
-        record_id = points$record_id[[i]],
-        comid = nldi_comid_function(points[i, ])$comid[[1L]],
-        nldi_error = NA_character_, stringsAsFactors = FALSE
-      ),
-      error = function(error) data.frame(
-        record_id = points$record_id[[i]], comid = NA_character_,
-        nldi_error = conditionMessage(error), stringsAsFactors = FALSE
+    last_error <- NULL
+    for (attempt in seq_len(retries + 1L)) {
+      result <- tryCatch(
+        data.frame(
+          record_id = points$record_id[[i]],
+          comid = nldi_comid_function(points[i, ])$comid[[1L]],
+          nldi_error = NA_character_, stringsAsFactors = FALSE
+        ),
+        error = function(error) error
       )
+      if (!inherits(result, "error")) return(result)
+      last_error <- result
+      if (attempt <= retries) {
+        Sys.sleep(max(throttle_seconds, 0.25) * 2 ^ (attempt - 1L))
+      }
+    }
+    data.frame(
+      record_id = points$record_id[[i]], comid = NA_character_,
+      nldi_error = conditionMessage(last_error), stringsAsFactors = FALSE
     )
   }
-  lookups <- if (length(pending) && workers > 1L && .Platform$OS.type != "windows") {
-    parallel::mclapply(pending, lookup_one, mc.cores = workers)
-  } else {
-    lapply(pending, lookup_one)
+  batches <- split(pending, ceiling(seq_along(pending) / workers))
+  lookups <- list()
+  for (batch_number in seq_along(batches)) {
+    if (batch_number > 1L && throttle_seconds > 0) Sys.sleep(throttle_seconds)
+    batch <- batches[[batch_number]]
+    batch_results <- if (length(batch) && workers > 1L && .Platform$OS.type != "windows") {
+      parallel::mclapply(batch, lookup_one, mc.cores = workers)
+    } else {
+      lapply(batch, lookup_one)
+    }
+    lookups <- c(lookups, batch_results)
   }
   if (length(lookups)) cached <- rbind(cached, do.call(rbind, lookups))
   cached <- cached[!duplicated(cached$record_id, fromLast = TRUE), , drop = FALSE]

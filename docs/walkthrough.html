@@ -1,0 +1,99 @@
+---
+title: Small-scale walkthrough
+---
+
+<p class="section-kicker">Learn by running it</p>
+<h1>Walk through two small basins before scaling up.</h1>
+<p class="lead">This package includes one Montana and one Idaho basin plus their clipped NHDPlus routing network. Use them to inspect each function's input and output before moving the same logic into <code>_targets.R</code>.</p>
+
+<div class="callout"><strong>What ships with WaterRAT.</strong> <code>pod_example_basins.gpkg</code> contains the two labeled AOIs and <code>NHDFlowline_Network</code>. Water-right source data, FlowMet, and ownership data remain local authoritative inputs.</div>
+
+<h2>1. Load and choose an AOI</h2>
+<pre><code>library(WaterRAT)
+
+fixture &lt;- system.file("extdata", "pod_example_basins.gpkg", package = "WaterRAT")
+example_basins &lt;- sf::read_sf(fixture, layer = "pod_example_basins")
+
+mt_aoi &lt;- dplyr::filter(example_basins, state_code == "MT")
+id_aoi &lt;- dplyr::filter(example_basins, state_code == "ID")
+example_basins</code></pre>
+<p>The layer has stable <code>state_code</code> and <code>example_basin</code> fields. Start with either row, then use both when checking cross-state behavior.</p>
+
+<h2>2. Retrieve and standardize PODs</h2>
+<pre><code>mt_pods &lt;- get_mtwr(
+  filter_geom = mt_aoi, layer = "WRQS_PODS",
+  local_path = "data/WRQS_Dataset_GDB.gdb"
+) |&gt;
+  date_cleaning()
+
+mt_candidates &lt;- standardize_mt_pod_candidates(mt_pods)
+
+id_rights &lt;- get_idwr_pods(
+  local_path = "data/idwr.gdb", filter_geom = id_aoi
+) |&gt;
+  expand_idwr_pods_by_use() |&gt;
+  standardize_idwr_water_rights() |&gt;
+  filter_water_rights_month(month = 8)
+
+validate_water_rights(mt_candidates)
+validate_water_rights(id_rights)</code></pre>
+<p>Montana candidates are indexed and reduced to one downstream-most POD per <code>WRKEY</code> in the next step. Idaho is already ready for shared analysis.</p>
+
+<h2>3. Read the matching routing network</h2>
+<pre><code>network &lt;- read_nhdplus_flowlines(
+  path = fixture,
+  filter_geom = example_basins,
+  layer = "NHDFlowline_Network"
+)
+
+network[, c("comid", "hydroseq", "dnhydroseq", "streamorde", "qe_08")]</code></pre>
+<p>This explicitly reads the fixture's <code>NHDFlowline_Network</code> layer using the same source-filtered reader used for a national local NHDPlus geodatabase. The fixture is small enough to map and inspect, while retaining the real routing fields.</p>
+
+<h2>4. Select Montana's downstream-most POD</h2>
+<pre><code>mt_comid_index &lt;- index_water_right_comids(
+  mt_candidates,
+  cache_path = "data/mt_pod_example_comids.rds",
+  workers = 1,
+  throttle_seconds = 0.5
+)
+
+mt_rights &lt;- select_mt_downstream_pods(
+  mt_pods, mt_comid_index, network
+) |&gt;
+  standardize_mt_water_rights()
+
+water_rights &lt;- dplyr::bind_rows(mt_rights, id_rights)</code></pre>
+<p>The lowest <code>hydroseq</code> is downstream. A group that cannot be linked to the local network is explicitly marked <code>lowest_pod_id_fallback</code> for review.</p>
+
+<h2>5. Index PODs and aggregate their local allocation</h2>
+<pre><code>comid_index &lt;- index_water_right_comids(
+  water_rights,
+  cache_path = "data/pod_example_comids.rds",
+  workers = 1,
+  throttle_seconds = 0.5
+)
+
+local_allocations &lt;- aggregate_local_allocations(water_rights, comid_index)
+local_allocations</code></pre>
+<p>Inspect <code>nldi_error</code> before continuing. Every indexed POD should have a COMID or an explicit reason it could not be assigned.</p>
+
+<h2>6. Route allocations downstream</h2>
+<pre><code>accumulated &lt;- accumulate_downstream_allocations(network, local_allocations)
+
+reportable_reaches &lt;- filter_reportable_reaches(
+  accumulated,
+  minimum_streamorder = 2
+)
+
+reportable_reaches</code></pre>
+<p>First-order reaches remain in <code>accumulated</code> so their local allocations can propagate downstream. Apply the reporting threshold only afterward.</p>
+
+<h2>7. Add FlowMet and compare to the basin method</h2>
+<pre><code># Read and clip your local FlowMet source to example_basins, then:
+final_join &lt;- format_capture_sites_output(
+  accumulated_network = reportable_reaches,
+  flowmet = flowmet_aoi
+)
+
+sf::write_sf(final_join, "data/pod_example_final.gpkg", delete_dsn = TRUE)</code></pre>
+<p>For validation, run the established NLDI-basin path for the same AOI and compare the final allocation fields. Once the small result agrees with expectations, encode the same steps in the <a href="{{ '/targets/' | relative_url }}">Targets framework</a>.</p>
