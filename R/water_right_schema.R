@@ -159,6 +159,8 @@ filter_water_rights_month <- function(water_rights, month = 8L,
 #' @export
 standardize_mt_pod_candidates <- function(pods) {
   .mt_required_fields(pods)
+  diversion_start <- if ("diversion_start" %in% names(pods)) as.character(pods$diversion_start) else NA_character_
+  diversion_end <- if ("diversion_end" %in% names(pods)) as.character(pods$diversion_end) else NA_character_
   result <- dplyr::transmute(
     pods,
     state = "MT",
@@ -168,8 +170,8 @@ standardize_mt_pod_candidates <- function(pods) {
     status = .data$WR_STATUS,
     source = .data$SOURCE_NAME,
     beneficial_use = NA_character_,
-    diversion_start = NA_character_,
-    diversion_end = NA_character_,
+    diversion_start = diversion_start,
+    diversion_end = diversion_end,
     max_flow_cfs = as.numeric(.data$MAX_FLOW_CFS),
     diversion_rate = as.numeric(.data$MAX_FLOW_RT),
     diversion_rate_unit = .data$FLOW_RT_UNIT,
@@ -266,6 +268,8 @@ standardize_mt_water_rights <- function(pods) {
       call. = FALSE
     )
   }
+  diversion_start <- if ("diversion_start" %in% names(pods)) as.character(pods$diversion_start) else NA_character_
+  diversion_end <- if ("diversion_end" %in% names(pods)) as.character(pods$diversion_end) else NA_character_
   result <- dplyr::transmute(
     pods,
     state = "MT",
@@ -275,8 +279,8 @@ standardize_mt_water_rights <- function(pods) {
     status = .data$WR_STATUS,
     source = .data$SOURCE_NAME,
     beneficial_use = NA_character_,
-    diversion_start = NA_character_,
-    diversion_end = NA_character_,
+    diversion_start = diversion_start,
+    diversion_end = diversion_end,
     max_flow_cfs = as.numeric(.data$MAX_FLOW_CFS),
     diversion_rate = as.numeric(.data$MAX_FLOW_RT),
     diversion_rate_unit = .data$FLOW_RT_UNIT,

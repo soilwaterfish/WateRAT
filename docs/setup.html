@@ -4,6 +4,99 @@ title: Setup and local data
 
 <p class="section-kicker">Get started</p><h1>Set up a local analysis workspace</h1><p class="lead">WaterRAT version-controls code and documentation—not large source datasets or derived results.</p>
 <div class="row g-3 my-4"><div class="col-md-4"><div class="step-card"><span class="step-number">1</span><h3>Install</h3><pre><code>remotes::install_github("soilwaterfish/WaterRAT")</code></pre></div></div><div class="col-md-4"><div class="step-card"><span class="step-number">2</span><h3>Place data locally</h3><p>Keep geodatabases, GeoPackages, caches, and scratch work beneath ignored <code>data/</code> and <code>dev/</code> paths.</p></div></div><div class="col-md-4"><div class="step-card"><span class="step-number">3</span><h3>Run a check</h3><pre><code>WATERRAT_RUN_MODE=smoke Rscript -e 'targets::tar_make()'</code></pre></div></div></div>
+
+<h2>What happens from local data to a reviewable result</h2>
+<p>Start with one small AOI and walk it through the same stages that the full state pipeline uses. The only difference at state scale is that <code>targets</code> executes and caches each stage for you.</p>
+<div class="workflow-flow" role="img" aria-label="WaterRAT workflow: prepare local data, filter and standardize PODs, assign COMIDs, route allocations through NHDPlus, then write a review GeoPackage.">
+  <div class="workflow-node"><span class="workflow-icon"><i class="bi bi-folder2-open"></i></span><strong>1. Prepare data</strong><small>Place source files locally and choose an AOI.</small></div>
+  <div class="workflow-arrow" aria-hidden="true"><i class="bi bi-arrow-right"></i></div>
+  <div class="workflow-node"><span class="workflow-icon"><i class="bi bi-funnel"></i></span><strong>2. Filter PODs</strong><small>Apply state rules and the shared schema.</small></div>
+  <div class="workflow-arrow" aria-hidden="true"><i class="bi bi-arrow-right"></i></div>
+  <div class="workflow-node"><span class="workflow-icon"><i class="bi bi-pin-map"></i></span><strong>3. Link COMIDs</strong><small>Use NLDI hydrolocation to connect PODs to NHDPlus.</small></div>
+  <div class="workflow-arrow" aria-hidden="true"><i class="bi bi-arrow-right"></i></div>
+  <div class="workflow-node"><span class="workflow-icon"><i class="bi bi-diagram-3"></i></span><strong>4. Route and review</strong><small>Accumulate allocations and write a GeoPackage.</small></div>
+</div>
+
+<h2>Try the workflow on a small AOI first</h2>
+<p>These are the core steps from the <a href="{{ '/walkthrough/' | relative_url }}">small-scale walkthrough</a>. They make the input, filtering, and routing decisions inspectable before you run every state.</p>
+
+<h3>1. Load an AOI and inspect the supplied example</h3>
+<pre><code>library(WaterRAT)
+
+fixture &lt;- system.file("extdata", "pod_example_basins.gpkg", package = "WaterRAT")
+example_basins &lt;- sf::read_sf(fixture, layer = "pod_example_basins")
+
+mt_aoi &lt;- dplyr::filter(example_basins, state_code == "MT")
+id_aoi &lt;- dplyr::filter(example_basins, state_code == "ID")</code></pre>
+<p>The package fixture provides one small Montana basin and one small Idaho basin. Replace either geometry with your own basin, state boundary, or project AOI.</p>
+
+<h3>2. Read only the relevant local records</h3>
+<pre><code>mt_pods &lt;- get_mtwr(
+  filter_geom = mt_aoi,
+  layer = "WRQS_PODS",
+  local_path = "data/WRQS_Dataset_GDB.gdb"
+) |&gt;
+  date_cleaning()
+
+id_rights &lt;- get_idwr_pods(
+  local_path = "data/idwr.gdb",
+  filter_geom = id_aoi
+) |&gt;
+  expand_idwr_pods_by_use() |&gt;
+  standardize_idwr_water_rights() |&gt;
+  filter_water_rights_month(month = 8)</code></pre>
+<p>Montana applies active, surface-water, non-missing-flow, and purpose filters. Idaho is filtered before report pages are scraped; its Water Uses and August rates are then standardized.</p>
+
+<h3>3. Connect PODs to the routing network</h3>
+<pre><code>network &lt;- read_nhdplus_flowlines(
+  path = "data/NHDPlusV21_National_Seamless_Flattened_Lower48.gdb",
+  filter_geom = example_basins,
+  layer = "NHDFlowline_Network"
+)
+
+mt_candidates &lt;- standardize_mt_pod_candidates(mt_pods)
+mt_comid_index &lt;- index_water_right_comids(
+  mt_candidates,
+  cache_path = "data/mt_pod_example_comids.rds",
+  workers = 1,
+  throttle_seconds = 0.5
+)
+
+mt_rights &lt;- select_mt_downstream_pods(mt_pods, mt_comid_index, network) |&gt;
+  standardize_mt_water_rights()</code></pre>
+<p>For Montana, repeated <code>WRKEY</code> PODs are represented by the furthest-downstream candidate: the lowest NHDPlus <code>hydroseq</code>. The selected COMID and method remain in the output as audit fields.</p>
+
+<h3>4. Validate, then choose your scale</h3>
+<pre><code>water_rights &lt;- dplyr::bind_rows(mt_rights, id_rights)
+validate_water_rights(water_rights)
+
+# Small AOI: continue with index_water_right_comids(),
+# aggregate_local_allocations(), and accumulate_downstream_allocations().
+# Full state: run the targets pipeline after local inputs are in place.</code></pre>
+<div class="d-flex flex-wrap gap-2 my-4"><a class="btn btn-primary" href="{{ '/walkthrough/' | relative_url }}">Open the complete walkthrough <i class="bi bi-arrow-right ms-1"></i></a><a class="btn btn-outline-primary" href="{{ '/targets/' | relative_url }}">Move to the targets pipeline</a></div>
+
+<h2>Prep once; reroute when needed</h2>
+<p>Preparation and network analysis intentionally use different targets scripts and stores. The preparation script filters each supported state, reuses stable Idaho report scrapes, selects Montana’s downstream-most POD per <code>WRKEY</code>, assigns COMIDs, intersects Forest Service ownership, and upserts state rows into one reusable GeoPackage. The analysis script reads only that prepared layer.</p>
+<pre><code># Refresh the Idaho and Montana preparation cache. This uses prep_targets.R and its own
+# _targets_prep store, leaving the routing pipeline’s _targets store intact.
+targets::tar_make(script = "prep_targets.R", store = "_targets_prep")
+
+# Review the prepared GeoPackage, then route every state it contains together.
+targets::tar_make()
+
+# Or refresh Idaho directly outside targets:
+refresh &lt;- refresh_idwr_network_water_rights(
+  local_path = "data/idwr.gdb",
+  filter_geom = idaho_boundary,
+  fs_boundary = idaho_fs_boundary,
+  nldi_cache_path = "data/cache/nldi/id.rds",
+  cache_path = "data/cache/prepped/water_rights.gpkg",
+  workers = 1,
+  throttle_seconds = 0.5
+)
+refresh$changes</code></pre>
+<p class="mb-0">On a later Idaho update, unchanged POD identity, report URL, status, source, and location reuse their cached Water Uses rows; only new or changed POD reports are scraped. Montana reuses its candidate-POD NLDI checkpoint before reselecting the downstream-most <code>WRKEY</code> location. NLDI checkpoints under <code>data/cache/nldi/</code> reuse a COMID only when the record ID and POD location are unchanged. Use <code>force_rescrape = TRUE</code> when IDWR has corrected report content without changing the source-layer identity.</p>
+
 <h2>Required local inputs</h2>
 <div class="table-responsive">
   <table class="table align-middle">
@@ -18,5 +111,9 @@ title: Setup and local data
     </tbody>
   </table>
 </div>
-<div class="callout callout-warning"><strong>Build Idaho deliberately.</strong> Idaho Water Uses require a report-page scrape. Create the canonical cache before a full targets run instead of scraping during ordinary rebuilds.</div>
-<pre><code>cache_idwr_water_rights(local_path = "data/idwr.gdb", filter_geom = idaho_boundary, cache_path = "data/idaho_water_rights.gpkg")</code></pre>
+<div class="callout callout-warning"><strong>Build state data deliberately.</strong> Idaho Water Uses require report-page scraping, and Montana needs the local NHDPlus source to select its downstream-most repeated POD. Use <code>prep_targets.R</code> to reuse stable Idaho report results and Montana COMID checkpoints; reserve <code>force_rescrape = TRUE</code> for a deliberate full Idaho report refresh.</div>
+<pre><code># State preparation cache (incremental Idaho scrape + Montana POD selection + ownership):
+targets::tar_make(script = "prep_targets.R", store = "_targets_prep")
+
+# Connected network analysis from the prepared GeoPackage:
+targets::tar_make()</code></pre>

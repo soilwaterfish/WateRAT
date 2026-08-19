@@ -2,16 +2,22 @@
 % Please edit documentation in R/utils.R
 \name{date_cleaning}
 \alias{date_cleaning}
-\title{Clean dates}
+\title{Filter Montana PODs to a diversion month and retain the reported dates}
 \usage{
-date_cleaning(data)
+date_cleaning(data, month = 8L)
 }
 \arguments{
-\item{data}{A previously created joined POU and POD object.}
+\item{data}{A Montana \code{WRQS_PODS} sf object.}
+
+\item{month}{Month number to retain, defaulting to August.}
 }
 \value{
-A sf object
+An \code{sf} object with canonical diversion-date fields.
 }
 \description{
-Clean dates
+Montana stores one or more periods in \code{PERIOD_OF_DIVERSIONS}, such as
+\code{"05/01 to 09/30; 11/01 to 11/30"}. This helper keeps records with a period
+overlapping \code{month} and adds canonical \code{diversion_start} and \code{diversion_end}
+fields. When several periods overlap the month, their earliest start and
+latest end are retained as the reported month-relevant span.
 }

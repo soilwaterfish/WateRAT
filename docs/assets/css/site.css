@@ -115,6 +115,36 @@ body {
   align-items: center; background: var(--waterrat-navy); border-radius: 50%; color: #fff; display: inline-flex; font-weight: 700; height: 2rem; justify-content: center; width: 2rem;
 }
 
+.workflow-flow {
+  align-items: stretch;
+  display: flex;
+  gap: .55rem;
+  margin: 1.5rem 0 2rem;
+}
+
+.workflow-node {
+  align-items: flex-start;
+  background: #f4faf8;
+  border: 1px solid #cce2dc;
+  border-radius: .75rem;
+  display: flex;
+  flex: 1 1 10rem;
+  flex-direction: column;
+  gap: .35rem;
+  padding: 1rem;
+}
+
+.workflow-node strong { color: var(--waterrat-navy); }
+.workflow-node small { color: #52646c; line-height: 1.35; }
+.workflow-icon { color: var(--waterrat-teal); font-size: 1.35rem; }
+
+.workflow-arrow {
+  align-items: center;
+  color: #4c9e96;
+  display: flex;
+  font-size: 1.25rem;
+}
+
 .metric { border-left: 3px solid #6cccb8; padding-left: 1rem; }
 .metric strong { color: var(--waterrat-navy); display: block; font-size: 1.5rem; }
 
@@ -213,4 +243,10 @@ body {
   .docs-main {
     margin-left: var(--sidebar-width);
   }
+}
+
+@media (max-width: 767.98px) {
+  .workflow-flow { align-items: center; flex-direction: column; }
+  .workflow-node { width: 100%; }
+  .workflow-arrow { transform: rotate(90deg); }
 }

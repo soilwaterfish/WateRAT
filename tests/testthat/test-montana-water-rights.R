@@ -24,6 +24,29 @@ test_that("Montana POD filtering uses sf and the analysis eligibility rules", {
   expect_equal(nrow(all_records), 5L)
 })
 
+test_that("Montana diversion periods filter August and enter the canonical schema", {
+  pods <- sf::st_as_sf(
+    data.frame(
+      WR_NUMBER = c("76J 1", "76J 2", "76J 3"), WRKEY = c("a", "b", "c"),
+      PODV_ID_SEQ = 1:3, WR_STATUS = "ACTIVE", SOURCE_NAME = "EXAMPLE CREEK",
+      MEANS_OF_DIV = "DIVERSION", MAX_FLOW_CFS = 1, MAX_FLOW_RT = 1, FLOW_RT_UNIT = "CFS",
+      MAX_VOL = NA_real_,
+      PERIOD_OF_DIVERSIONS = c("05/01 to 09/30", "01/01 to 01/31", "08/01 to 08/15; 08/16 to 08/31"),
+      x = 0:2, y = 0
+    ),
+    coords = c("x", "y"), crs = 4326
+  )
+
+  august <- date_cleaning(pods)
+  candidates <- standardize_mt_pod_candidates(august)
+
+  expect_equal(august$WRKEY, c("a", "c"))
+  expect_equal(august$diversion_start, c("05/01", "08/01"))
+  expect_equal(august$diversion_end, c("09/30", "08/31"))
+  expect_equal(candidates$diversion_start, august$diversion_start)
+  expect_equal(candidates$diversion_end, august$diversion_end)
+})
+
 test_that("Montana selection retains the downstream-most POD for each WRKEY", {
   pods <- sf::st_as_sf(
     data.frame(

@@ -52,3 +52,62 @@ get_mtwr <- function(filter_geom, layer, local_path, active_only = TRUE) {
   }
   pods
 }
+
+#' Refresh prepared Montana water rights
+#'
+#' Apply the Montana eligibility and month filters, index each physical POD to
+#' select the downstream-most location for repeated `WRKEY` values, then
+#' refresh Montana's rows in the combined prepared cache. Candidate COMID
+#' lookups are checkpointed, so unchanged POD locations are not sent to NLDI
+#' again on a later source-data refresh.
+#'
+#' @param local_path Path to the Montana water-right geodatabase.
+#' @param filter_geom Montana analysis boundary.
+#' @param fs_boundary Forest Service ownership geometry for Montana.
+#' @param network NHDPlus flowlines with `comid` and `hydroseq`.
+#' @param nldi_cache_path Candidate-POD NLDI checkpoint path.
+#' @param cache_path Combined prepped water-right GeoPackage path.
+#' @param month Analysis month.
+#' @param layer Montana source layer name.
+#' @param max_pods Optional maximum number of filtered POD locations to process.
+#'   Intended for small smoke tests; leave `NULL` for a complete refresh.
+#' @param ... Arguments passed to [index_water_right_comids()].
+#' @return A list from [refresh_network_water_rights()] with additional
+#'   `candidate_pod_count`.
+#' @export
+refresh_mt_network_water_rights <- function(
+    local_path, filter_geom, fs_boundary, network, nldi_cache_path,
+    cache_path = file.path("data", "cache", "prepped", "water_rights.gpkg"),
+    month = 8L, layer = "WRQS_PODS", max_pods = NULL, ...) {
+  pods <- get_mtwr(
+    filter_geom = filter_geom, layer = layer, local_path = local_path
+  ) |>
+    date_cleaning(month = month)
+  if (!is.null(max_pods)) {
+    max_pods <- as.integer(max_pods)
+    if (length(max_pods) != 1L || is.na(max_pods) || max_pods < 1L) {
+      stop("`max_pods` must be one positive integer or NULL.", call. = FALSE)
+    }
+    pods <- pods[seq_len(min(nrow(pods), max_pods)), , drop = FALSE]
+  }
+  candidates <- standardize_mt_pod_candidates(pods)
+  candidate_index <- index_water_right_comids(
+    candidates, cache_path = nldi_cache_path, ...
+  )
+  selected <- select_mt_downstream_pods(pods, candidate_index, network)
+  water_rights <- standardize_mt_water_rights(selected)
+  selected_candidate_id <- paste("MT", selected$PODV_ID_SEQ, sep = ":")
+  candidate_row <- match(selected_candidate_id, candidate_index$record_id)
+  selected_index <- data.frame(
+    record_id = water_rights$record_id,
+    comid = as.character(selected$selected_comid),
+    nldi_error = as.character(candidate_index$nldi_error[candidate_row]),
+    stringsAsFactors = FALSE
+  )
+  result <- refresh_network_water_rights(
+    water_rights, fs_boundary = fs_boundary, nldi_cache_path = nldi_cache_path,
+    cache_path = cache_path, comid_index = selected_index
+  )
+  result$candidate_pod_count <- nrow(candidates)
+  result
+}
