@@ -57,15 +57,17 @@ get_mtwr <- function(filter_geom, layer, local_path, active_only = TRUE) {
 #'
 #' Apply the Montana eligibility and month filters, index each physical POD to
 #' select the downstream-most location for repeated `WRKEY` values, then
-#' refresh Montana's rows in the combined prepared cache. Candidate COMID
-#' lookups are checkpointed, so unchanged POD locations are not sent to NLDI
-#' again on a later source-data refresh.
+#' refresh Montana's rows in the combined prepared cache. Candidate COMIDs are
+#' assigned from local NHDPlus catchments; unresolved locations use checkpointed
+#' NLDI fallback lookups.
 #'
 #' @param local_path Path to the Montana water-right geodatabase.
 #' @param filter_geom Montana analysis boundary.
 #' @param fs_boundary Forest Service ownership geometry for Montana.
 #' @param network NHDPlus flowlines with `comid` and `hydroseq`.
 #' @param nldi_cache_path Candidate-POD NLDI checkpoint path.
+#' @param catchments Optional local NHDPlus catchments used for primary COMID
+#'   assignment; NLDI is used only for unmatched PODs.
 #' @param cache_path Combined prepped water-right GeoPackage path.
 #' @param month Analysis month.
 #' @param layer Montana source layer name.
@@ -78,7 +80,7 @@ get_mtwr <- function(filter_geom, layer, local_path, active_only = TRUE) {
 refresh_mt_network_water_rights <- function(
     local_path, filter_geom, fs_boundary, network, nldi_cache_path,
     cache_path = file.path("data", "cache", "prepped", "water_rights.gpkg"),
-    month = 8L, layer = "WRQS_PODS", max_pods = NULL, ...) {
+    month = 8L, layer = "WRQS_PODS", max_pods = NULL, catchments = NULL, ...) {
   pods <- get_mtwr(
     filter_geom = filter_geom, layer = layer, local_path = local_path
   ) |>
@@ -92,7 +94,7 @@ refresh_mt_network_water_rights <- function(
   }
   candidates <- standardize_mt_pod_candidates(pods)
   candidate_index <- index_water_right_comids(
-    candidates, cache_path = nldi_cache_path, ...
+    candidates, cache_path = nldi_cache_path, catchments = catchments, ...
   )
   selected <- select_mt_downstream_pods(pods, candidate_index, network)
   water_rights <- standardize_mt_water_rights(selected)

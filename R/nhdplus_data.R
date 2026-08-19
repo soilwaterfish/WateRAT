@@ -88,3 +88,37 @@ read_nhdplus_flowlines <- function(
     required_fields = c("comid", "hydroseq", "dnhydroseq", "streamorde")
   )
 }
+
+#' Read local NHDPlus catchments for POD-to-COMID assignment
+#'
+#' Reads only catchments intersecting an AOI from a local NHDPlus datasource.
+#' `FEATUREID` is standardized to character `featureid`, which is the COMID of
+#' the associated NHDPlus flowline. Catchments are not clipped by default so a
+#' POD near an AOI edge remains inside its complete catchment polygon.
+#'
+#' @inheritParams read_nhdplus_aoi
+#' @return An `sf` catchment layer with a character `featureid` field.
+#' @export
+read_nhdplus_catchments <- function(
+    path,
+    filter_geom,
+    layer = "Catchment",
+    clip = FALSE) {
+  catchments <- read_nhdplus_aoi(
+    path = path,
+    filter_geom = filter_geom,
+    layer = layer,
+    clip = clip,
+    required_fields = "featureid"
+  )
+  # The national Catchment layer can contain isolated invalid polygons (for
+  # example, a repeated vertex). Repair only those rows before s2 evaluates
+  # point-in-polygon intersections downstream.
+  invalid <- !sf::st_is_valid(catchments)
+  if (any(invalid)) {
+    catchments[invalid, ] <- sf::st_make_valid(catchments[invalid, ])
+  }
+  catchments <- catchments[!sf::st_is_empty(catchments), , drop = FALSE]
+  catchments$featureid <- as.character(catchments$featureid)
+  catchments
+}

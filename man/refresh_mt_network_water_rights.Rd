@@ -14,6 +14,7 @@ refresh_mt_network_water_rights(
   month = 8L,
   layer = "WRQS_PODS",
   max_pods = NULL,
+  catchments = NULL,
   ...
 )
 }
@@ -37,6 +38,9 @@ refresh_mt_network_water_rights(
 \item{max_pods}{Optional maximum number of filtered POD locations to process.
 Intended for small smoke tests; leave \code{NULL} for a complete refresh.}
 
+\item{catchments}{Optional local NHDPlus catchments used for primary COMID
+assignment; NLDI is used only for unmatched PODs.}
+
 \item{...}{Arguments passed to \code{\link[=index_water_right_comids]{index_water_right_comids()}}.}
 }
 \value{
@@ -46,7 +50,7 @@ A list from \code{\link[=refresh_network_water_rights]{refresh_network_water_rig
 \description{
 Apply the Montana eligibility and month filters, index each physical POD to
 select the downstream-most location for repeated \code{WRKEY} values, then
-refresh Montana's rows in the combined prepared cache. Candidate COMID
-lookups are checkpointed, so unchanged POD locations are not sent to NLDI
-again on a later source-data refresh.
+refresh Montana's rows in the combined prepared cache. Candidate COMIDs are
+assigned from local NHDPlus catchments; unresolved locations use checkpointed
+NLDI fallback lookups.
 }

@@ -10,7 +10,9 @@ index_water_right_comids(
   workers = 1L,
   throttle_seconds = 0.5,
   retries = 3L,
-  quiet = FALSE
+  quiet = FALSE,
+  catchments = NULL,
+  fallback_to_nldi = TRUE
 )
 }
 \arguments{
@@ -31,11 +33,20 @@ worker, this is the minimum pause between requests.}
 exponential backoff and unresolved errors remain in \code{nldi_error}.}
 
 \item{quiet}{Whether to suppress progress messages.}
+
+\item{catchments}{Optional local NHDPlus catchment \code{sf} layer from
+\code{\link[=read_nhdplus_catchments]{read_nhdplus_catchments()}}. When supplied, intersecting catchments assign
+COMIDs locally and the NLDI API is used only for unmatched or ambiguous
+points.}
+
+\item{fallback_to_nldi}{Whether unmatched or ambiguous local catchment
+matches should be sent to the NLDI API. Ignored when \code{catchments} is NULL.}
 }
 \value{
 A data frame with \code{record_id}, \code{comid}, and \code{nldi_error}.
 }
 \description{
-Use the NLDI point index to assign each POD to the COMID identified by the
-hydrofabric. This is a hydrologic-location lookup, not geometric snapping.
+Prefer a local NHDPlus catchment intersection to assign each POD to the
+COMID identified by the hydrofabric. If no catchment layer is supplied, or a
+point has no single match, NLDI hydrolocation is available as a fallback.
 }

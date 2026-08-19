@@ -38,3 +38,64 @@ test_that("first-order allocations propagate before report filtering", {
   expect_equal(nrow(reported), 1)
   expect_equal(reported$cumulative_flow_cfs, 4)
 })
+
+test_that("local NHDPlus catchments assign PODs to FEATUREID COMIDs", {
+  water_rights <- sf::st_as_sf(
+    data.frame(
+      state = c("MT", "MT"), right_id = c("A", "B"), site_id = c("1", "2"),
+      record_id = c("MT:1", "MT:2"), status = "ACTIVE", source = "CREEK",
+      beneficial_use = NA_character_, diversion_start = "08/01", diversion_end = "08/31",
+      max_flow_cfs = c(1, 1), diversion_rate = c(1, 1), diversion_rate_unit = "CFS",
+      volume = NA_real_, volume_unit = NA_character_, is_instream = FALSE,
+      report_url = NA_character_, x = c(0.5, 3), y = c(0.5, 0.5)
+    ), coords = c("x", "y"), crs = 4326
+  )
+  catchments <- sf::st_as_sf(
+    data.frame(
+      FEATUREID = 101L,
+      wkt = "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))"
+    ), wkt = "wkt", crs = 4326
+  )
+
+  indexed <- index_water_right_catchments(water_rights, catchments)
+  primary_index <- index_water_right_comids(
+    water_rights[1, , drop = FALSE], catchments = catchments
+  )
+
+  expect_equal(indexed$comid, c("101", NA_character_))
+  expect_true(is.na(indexed$nldi_error[[1L]]))
+  expect_match(indexed$nldi_error[[2L]], "No intersecting local")
+  expect_equal(primary_index$comid, "101")
+  expect_true(is.na(primary_index$nldi_error))
+})
+
+test_that("final output pairs every allocation field with its percent", {
+  accumulated <- sf::st_as_sf(
+    data.frame(
+      comid = "A",
+      cumulative_intersecting_flow_all_together = 5,
+      cumulative_intersecting_flow_all_together_instream = 2,
+      cumulative_intersecting_flow_private = 3,
+      x = 0, y = 0
+    ), coords = c("x", "y"), crs = 4326
+  )
+  flowmet <- sf::st_as_sf(
+    data.frame(comid = "A", maug_hist = 20, qe_08 = 7, x = 0, y = 0),
+    coords = c("x", "y"), crs = 4326
+  )
+
+  output <- format_capture_sites_output(accumulated, flowmet)
+
+  expect_equal(
+    names(output)[seq_len(9L)],
+    c(
+      "comid", "maug_hist", "qe_08",
+      "intersecting_flow_all_together", "intersecting_flow_all_together_percent",
+      "intersecting_flow_all_together_instream", "intersecting_flow_all_together_instream_percent",
+      "intersecting_flow_private", "intersecting_flow_private_percent"
+    )
+  )
+  expect_equal(output$intersecting_flow_all_together_percent, 25)
+  expect_equal(output$intersecting_flow_all_together_instream_percent, 10)
+  expect_equal(output$intersecting_flow_private_percent, 15)
+})

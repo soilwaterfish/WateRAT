@@ -111,12 +111,21 @@ list(
       layer = nhdplus_layer, clip = FALSE
     )
   ),
+  tar_target(
+    idaho_catchments,
+    read_nhdplus_catchments(nhdplus_source, idaho_boundary, clip = FALSE)
+  ),
+  tar_target(
+    montana_catchments,
+    read_nhdplus_catchments(nhdplus_source, montana_boundary, clip = FALSE)
+  ),
   # Idaho writes first. Montana depends on this target below so both adapters
   # safely upsert one shared GeoPackage rather than writing concurrently.
   tar_target(
     idaho_prepped_cache,
     refresh_idwr_network_water_rights(
-      idwr_source, idaho_boundary, idaho_fs_boundary, id_nldi_path, prepped_path,
+      idwr_source, idaho_boundary, idaho_fs_boundary, id_nldi_path,
+      catchments = idaho_catchments, cache_path = prepped_path,
       max_pods = prep_max_pods, workers = 10L, throttle_seconds = 0.5
     )$cache_path,
     format = "file"
@@ -127,7 +136,8 @@ list(
       idaho_prepped_cache
       refresh_mt_network_water_rights(
         mtwr_source, montana_boundary, montana_fs_boundary,
-        montana_selection_network, mt_nldi_path, prepped_path,
+        montana_selection_network, mt_nldi_path,
+        catchments = montana_catchments, cache_path = prepped_path,
         max_pods = prep_max_pods, workers = 10L, throttle_seconds = 0.5
       )$cache_path
     },

@@ -15,6 +15,7 @@ refresh_idwr_network_water_rights(
   layer = "PODRight",
   max_pods = NULL,
   force_rescrape = FALSE,
+  catchments = NULL,
   ...
 )
 }
@@ -41,6 +42,9 @@ Intended for small smoke tests; leave \code{NULL} for a complete refresh.}
 \item{force_rescrape}{Whether to scrape every currently eligible Idaho POD.
 Use this when IDWR has revised report-page content without changing the
 POD-layer identity or report URL.}
+
+\item{catchments}{Optional local NHDPlus catchments used for primary COMID
+assignment; NLDI is used only for unmatched PODs.}
 
 \item{...}{Additional arguments passed to \code{\link[=refresh_network_water_rights]{refresh_network_water_rights()}}.}
 }

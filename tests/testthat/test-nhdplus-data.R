@@ -32,6 +32,42 @@ test_that("routing reader explains when a local layer lacks routing fields", {
   )
 })
 
+test_that("local catchment reader standardizes FEATUREID as a COMID", {
+  path <- tempfile(fileext = ".gpkg")
+  catchments <- sf::st_as_sf(
+    data.frame(
+      FEATUREID = c(101L, 202L),
+      wkt = c(
+        "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
+        "POLYGON ((2 0, 3 0, 3 1, 2 1, 2 0))"
+      )
+    ), wkt = "wkt", crs = 4326
+  )
+  sf::write_sf(catchments, path, layer = "Catchment", quiet = TRUE)
+  aoi <- sf::st_as_sfc("POLYGON ((-0.1 -0.1, 1.1 -0.1, 1.1 1.1, -0.1 1.1, -0.1 -0.1))", crs = 4326)
+
+  result <- read_nhdplus_catchments(path, aoi)
+
+  expect_equal(result$featureid, "101")
+  expect_true(is.character(result$featureid))
+})
+
+test_that("local catchment reader repairs invalid source polygons", {
+  path <- tempfile(fileext = ".gpkg")
+  catchment <- sf::st_as_sf(
+    data.frame(
+      FEATUREID = 101L,
+      wkt = "POLYGON ((0 0, 1 0, 1 1, 1 1, 0 1, 0 0))"
+    ), wkt = "wkt", crs = 4326
+  )
+  sf::write_sf(catchment, path, layer = "Catchment", quiet = TRUE)
+  aoi <- sf::st_as_sfc("POLYGON ((-1 -1, 2 -1, 2 2, -1 2, -1 -1))", crs = 4326)
+
+  result <- read_nhdplus_catchments(path, aoi)
+
+  expect_true(all(sf::st_is_valid(result)))
+})
+
 test_that("the shipped basin fixture exercises the local NHDPlus reader", {
   fixture <- testthat::test_path("..", "..", "inst", "extdata", "test_basin_nhdplus.gpkg")
   basin <- sf::read_sf(fixture, layer = "basin_boundary", quiet = TRUE)

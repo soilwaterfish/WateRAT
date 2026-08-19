@@ -46,12 +46,18 @@ validate_water_rights(id_rights)</code></pre>
   layer = "NHDFlowline_Network"
 )
 
+catchments &lt;- read_nhdplus_catchments(
+  path = "data/NHDPlusNationalData/NHDPlusV21_National_Seamless_Flattened_Lower48.gdb",
+  filter_geom = example_basins
+)
+
 network[, c("comid", "hydroseq", "dnhydroseq", "streamorde", "qe_08")]</code></pre>
 <p>This explicitly reads the fixture's <code>NHDFlowline_Network</code> layer using the same source-filtered reader used for a national local NHDPlus geodatabase. The fixture is small enough to map and inspect, while retaining the real routing fields.</p>
 
 <h2>4. Select Montana's downstream-most POD</h2>
 <pre><code>mt_comid_index &lt;- index_water_right_comids(
   mt_candidates,
+  catchments = catchments,
   cache_path = "data/mt_pod_example_comids.rds",
   workers = 1,
   throttle_seconds = 0.5
@@ -68,6 +74,7 @@ water_rights &lt;- dplyr::bind_rows(mt_rights, id_rights)</code></pre>
 <h2>5. Index PODs and aggregate their local allocation</h2>
 <pre><code>comid_index &lt;- index_water_right_comids(
   water_rights,
+  catchments = catchments,
   cache_path = "data/pod_example_comids.rds",
   workers = 1,
   throttle_seconds = 0.5

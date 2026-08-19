@@ -31,8 +31,10 @@ The workflow deliberately separates state preparation from network analysis.
    first and reuses cached Water Uses report results for unchanged POD
    identity, report URL, status, source, and location. Montana filters to
    eligible August PODs, indexes candidate locations, and retains the
-   downstream-most POD for each `WRKEY`. Both retain location-aware NLDI
-   checkpoints under `data/cache/nldi/`.
+   downstream-most POD for each `WRKEY`. Both first intersect PODs with the
+   local NHDPlus `Catchment` layer, using its `FEATUREID` as the COMID. NLDI
+   checkpoints under `data/cache/nldi/` are retained only for the rare PODs
+   with no single local catchment match.
 2. `_targets.R` reads the one prepared multi-state layer and performs network
    accumulation through NHDPlus. It has no water-right scraping step, so it
    can be rerun independently whenever routing, FlowMet, or reporting changes.
@@ -48,7 +50,8 @@ targets::tar_make()
 The separate targets stores prevent ordinary network analysis from invalidating
 the state-preparation cache. On a future refresh, removed state records are
 reported as retired, changed records are re-prepared, and unchanged POD
-locations reuse their successful COMID assignments. Use
+locations receive local catchment COMIDs without API calls; only unresolved
+locations reuse their successful NLDI fallback assignments. Use
 `refresh_idwr_network_water_rights(..., force_rescrape = TRUE)` only when IDWR
 has changed report-page content without changing the POD layer or report URL.
 
@@ -63,7 +66,8 @@ standardized and August-overlapping rates are summarized to one site.
 
 Every prepared record includes its canonical allocation fields plus:
 
-* `comid`: NLDI hydrolocation result used for routing;
+* `comid`: local NHDPlus `Catchment$FEATUREID` used for routing (or an NLDI
+  fallback result when needed);
 * `nldi_error`: explicit explanation when a POD cannot be indexed; and
 * `fs_intersection`: Forest Service ownership classification.
 

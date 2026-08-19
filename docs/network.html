@@ -3,9 +3,15 @@ title: Network accumulation
 ---
 
 <p class="section-kicker">NHDPlus routing</p><h1>Accumulate once. Route downstream.</h1><p class="lead">The network method replaces repeated upstream-basin geometry work with topological propagation over NHDPlus flowlines.</p>
-<div class="row g-2 text-center my-4"><div class="col-md"><div class="step-card"><i class="bi bi-geo-alt feature-icon"></i><p class="mt-2 mb-0">Canonical POD</p></div></div><div class="col-md"><div class="step-card"><i class="bi bi-crosshair feature-icon"></i><p class="mt-2 mb-0">Hydrolocation COMID</p></div></div><div class="col-md"><div class="step-card"><i class="bi bi-diagram-3 feature-icon"></i><p class="mt-2 mb-0">NHDPlus edges</p></div></div><div class="col-md"><div class="step-card"><i class="bi bi-arrow-down-right feature-icon"></i><p class="mt-2 mb-0">Cumulative flows</p></div></div><div class="col-md"><div class="step-card"><i class="bi bi-file-earmark-map feature-icon"></i><p class="mt-2 mb-0">Report layer</p></div></div></div>
-<h2>Assign a routable COMID</h2><p><code>nldi_comid_function()</code> uses NLDI <code>hydrolocation</code>, not a catchment-only lookup. It snaps a nearby point or traces downhill to a valid connected flowline. <code>index_water_right_comids()</code> checkpoints this work, paces requests, and retries temporary service failures.</p><pre><code>index_water_right_comids(
+<div class="row g-2 text-center my-4"><div class="col-md"><div class="step-card"><i class="bi bi-geo-alt feature-icon"></i><p class="mt-2 mb-0">Canonical POD</p></div></div><div class="col-md"><div class="step-card"><i class="bi bi-grid-3x3 feature-icon"></i><p class="mt-2 mb-0">Catchment COMID</p></div></div><div class="col-md"><div class="step-card"><i class="bi bi-diagram-3 feature-icon"></i><p class="mt-2 mb-0">NHDPlus edges</p></div></div><div class="col-md"><div class="step-card"><i class="bi bi-arrow-down-right feature-icon"></i><p class="mt-2 mb-0">Cumulative flows</p></div></div><div class="col-md"><div class="step-card"><i class="bi bi-file-earmark-map feature-icon"></i><p class="mt-2 mb-0">Report layer</p></div></div></div>
+<h2>Assign a routable COMID</h2><p>Read the local NHDPlus <code>Catchment</code> layer with the same AOI filter used for flowlines, then intersect each POD once. The catchment <code>FEATUREID</code> is the associated flowline COMID. NLDI hydrolocation is retained only as a paced, checkpointed fallback for a POD with no single local catchment match.</p><pre><code>catchments &lt;- read_nhdplus_catchments(
+  path = "data/NHDPlusNationalData/NHDPlusV21_National_Seamless_Flattened_Lower48.gdb",
+  filter_geom = analysis_aoi
+)
+
+index_water_right_comids(
   water_rights,
+  catchments = catchments,
   cache_path = "data/state_hydrolocation.rds",
   workers = 1L,
   throttle_seconds = 0.5,

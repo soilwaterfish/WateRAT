@@ -377,6 +377,8 @@ write_idwr_pods_by_use <- function(pods_by_use, path, layer = "PODRightWaterUses
 #' @param filter_geom Idaho analysis boundary.
 #' @param fs_boundary Forest Service ownership geometry for Idaho.
 #' @param nldi_cache_path State-specific NLDI checkpoint path.
+#' @param catchments Optional local NHDPlus catchments used for primary COMID
+#'   assignment; NLDI is used only for unmatched PODs.
 #' @param cache_path Combined prepped water-right GeoPackage path.
 #' @param month Analysis month.
 #' @param retries Report-request retries for new or changed PODs.
@@ -394,7 +396,7 @@ refresh_idwr_network_water_rights <- function(
     local_path, filter_geom, fs_boundary, nldi_cache_path,
     cache_path = file.path("data", "cache", "prepped", "water_rights.gpkg"),
     month = 8L, retries = 2L, layer = "PODRight", max_pods = NULL,
-    force_rescrape = FALSE, ...) {
+    force_rescrape = FALSE, catchments = NULL, ...) {
   pods <- get_idwr_pods(local_path = local_path, filter_geom = filter_geom, layer = layer)
   if (!is.null(max_pods)) {
     max_pods <- as.integer(max_pods)
@@ -462,7 +464,7 @@ refresh_idwr_network_water_rights <- function(
   }
   result <- refresh_network_water_rights(
     current, fs_boundary = fs_boundary, nldi_cache_path = nldi_cache_path,
-    cache_path = cache_path, ...
+    cache_path = cache_path, catchments = catchments, ...
   )
   result$scraped_pod_count <- nrow(new_or_changed)
   result$reused_pod_count <- nrow(reused)

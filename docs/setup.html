@@ -12,7 +12,7 @@ title: Setup and local data
   <div class="workflow-arrow" aria-hidden="true"><i class="bi bi-arrow-right"></i></div>
   <div class="workflow-node"><span class="workflow-icon"><i class="bi bi-funnel"></i></span><strong>2. Filter PODs</strong><small>Apply state rules and the shared schema.</small></div>
   <div class="workflow-arrow" aria-hidden="true"><i class="bi bi-arrow-right"></i></div>
-  <div class="workflow-node"><span class="workflow-icon"><i class="bi bi-pin-map"></i></span><strong>3. Link COMIDs</strong><small>Use NLDI hydrolocation to connect PODs to NHDPlus.</small></div>
+  <div class="workflow-node"><span class="workflow-icon"><i class="bi bi-pin-map"></i></span><strong>3. Link COMIDs</strong><small>Intersect PODs with local NHDPlus catchments.</small></div>
   <div class="workflow-arrow" aria-hidden="true"><i class="bi bi-arrow-right"></i></div>
   <div class="workflow-node"><span class="workflow-icon"><i class="bi bi-diagram-3"></i></span><strong>4. Route and review</strong><small>Accumulate allocations and write a GeoPackage.</small></div>
 </div>
@@ -57,6 +57,10 @@ id_rights &lt;- get_idwr_pods(
 mt_candidates &lt;- standardize_mt_pod_candidates(mt_pods)
 mt_comid_index &lt;- index_water_right_comids(
   mt_candidates,
+  catchments = read_nhdplus_catchments(
+    path = "data/NHDPlusNationalData/NHDPlusV21_National_Seamless_Flattened_Lower48.gdb",
+    filter_geom = example_basins
+  ),
   cache_path = "data/mt_pod_example_comids.rds",
   workers = 1,
   throttle_seconds = 0.5
@@ -95,7 +99,7 @@ refresh &lt;- refresh_idwr_network_water_rights(
   throttle_seconds = 0.5
 )
 refresh$changes</code></pre>
-<p class="mb-0">On a later Idaho update, unchanged POD identity, report URL, status, source, and location reuse their cached Water Uses rows; only new or changed POD reports are scraped. Montana reuses its candidate-POD NLDI checkpoint before reselecting the downstream-most <code>WRKEY</code> location. NLDI checkpoints under <code>data/cache/nldi/</code> reuse a COMID only when the record ID and POD location are unchanged. Use <code>force_rescrape = TRUE</code> when IDWR has corrected report content without changing the source-layer identity.</p>
+<p class="mb-0">On a later Idaho update, unchanged POD identity, report URL, status, source, and location reuse their cached Water Uses rows; only new or changed POD reports are scraped. Both states assign COMIDs by local catchment intersection. NLDI checkpoints under <code>data/cache/nldi/</code> are used only when a POD has no single local catchment match. Use <code>force_rescrape = TRUE</code> when IDWR has corrected report content without changing the source-layer identity.</p>
 
 <h2>Required local inputs</h2>
 <div class="table-responsive">
@@ -104,7 +108,7 @@ refresh$changes</code></pre>
     <tbody>
       <tr><td>Montana WRQS geodatabase</td><td><code>WRQS_PODS</code> records</td><td><a href="https://opendata-mtdnrc.hub.arcgis.com/maps/edf5bfa459304c3bb8af3361b21e92f2/about" target="_blank" rel="noopener">Montana DNRC WRQS ↗</a></td><td>Local only</td></tr>
       <tr><td>Idaho IDWR POD geodatabase</td><td><code>PODRight</code> records</td><td><a href="https://data-idwr.hub.arcgis.com/datasets/f0b37d653f8249a4945d61bdb98dc4a7_0/explore?location=45.487555%2C-114.096317%2C5" target="_blank" rel="noopener">Idaho IDWR PODs ↗</a></td><td>Local only</td></tr>
-      <tr><td>NHDPlus v2.1 national geodatabase</td><td><code>NHDFlowline_Network</code> routing and COMID attributes</td><td><a href="https://dmap-data-commons-ow.s3.amazonaws.com/NHDPlusV21/Data/NationalData/NHDPlusV21_NationalData_Seamless_Geodatabase_Lower48_07.7z" target="_blank" rel="noopener">NHDPlus Lower 48 download ↗</a></td><td>Local only</td></tr>
+      <tr><td>NHDPlus v2.1 national geodatabase</td><td><code>NHDFlowline_Network</code> routing plus <code>Catchment$FEATUREID</code> POD-to-COMID assignment</td><td><a href="https://dmap-data-commons-ow.s3.amazonaws.com/NHDPlusV21/Data/NationalData/NHDPlusV21_NationalData_Seamless_Geodatabase_Lower48_07.7z" target="_blank" rel="noopener">NHDPlus Lower 48 download ↗</a></td><td>Local only</td></tr>
       <tr><td>FlowMet GeoPackage</td><td><code>maug_hist</code> flow</td><td><a href="https://data.fs.usda.gov/geodata/edw/datasets.php?xmlKeyword=hydro+flow+metric" target="_blank" rel="noopener">USFS hydro flow metrics ↗</a></td><td>Local only</td></tr>
       <tr><td>Forest Service ownership boundaries</td><td>FS/private split</td><td><a href="https://data.fs.usda.gov/geodata/edw/datasets.php?dsetCategory=boundaries" target="_blank" rel="noopener">USFS boundaries ↗</a></td><td>Local only</td></tr>
       <tr><td>State boundaries</td><td>Analysis extent</td><td>Authoritative state-boundary source</td><td>Local only</td></tr>

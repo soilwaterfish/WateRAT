@@ -1,7 +1,8 @@
 #' Assign water rights to NHDPlus COMIDs
 #'
-#' Use the NLDI point index to assign each POD to the COMID identified by the
-#' hydrofabric. This is a hydrologic-location lookup, not geometric snapping.
+#' Prefer a local NHDPlus catchment intersection to assign each POD to the
+#' COMID identified by the hydrofabric. If no catchment layer is supplied, or a
+#' point has no single match, NLDI hydrolocation is available as a fallback.
 #'
 #' @param water_rights Canonical point water-right records.
 #' @param cache_path Optional `.rds` checkpoint path. Existing successful or
@@ -14,13 +15,39 @@
 #'   worker, this is the minimum pause between requests.
 #' @param retries Number of retries for a failed NLDI request. Retries use
 #'   exponential backoff and unresolved errors remain in `nldi_error`.
+#' @param catchments Optional local NHDPlus catchment `sf` layer from
+#'   [read_nhdplus_catchments()]. When supplied, intersecting catchments assign
+#'   COMIDs locally and the NLDI API is used only for unmatched or ambiguous
+#'   points.
+#' @param fallback_to_nldi Whether unmatched or ambiguous local catchment
+#'   matches should be sent to the NLDI API. Ignored when `catchments` is NULL.
 #' @param quiet Whether to suppress progress messages.
 #' @return A data frame with `record_id`, `comid`, and `nldi_error`.
 #' @export
 index_water_right_comids <- function(water_rights, cache_path = NULL, workers = 1L,
                                      throttle_seconds = 0.5, retries = 3L,
-                                     quiet = FALSE) {
+                                     quiet = FALSE, catchments = NULL,
+                                     fallback_to_nldi = TRUE) {
   validate_water_rights(water_rights)
+  if (!is.null(catchments)) {
+    local_index <- index_water_right_catchments(water_rights, catchments)
+    fallback_to_nldi <- isTRUE(fallback_to_nldi)
+    pending <- is.na(local_index$comid)
+    if (!any(pending) || !fallback_to_nldi) return(local_index)
+    if (!quiet) {
+      message("Locally assigned ", sum(!pending), " of ", nrow(local_index),
+              " POD records; sending ", sum(pending), " unmatched records to NLDI.")
+    }
+    remote_index <- index_water_right_comids(
+      water_rights[pending, , drop = FALSE], cache_path = cache_path,
+      workers = workers, throttle_seconds = throttle_seconds, retries = retries,
+      quiet = quiet
+    )
+    local_index[pending, c("comid", "nldi_error")] <- remote_index[
+      , c("comid", "nldi_error"), drop = FALSE
+    ]
+    return(local_index)
+  }
   points <- sf::st_transform(water_rights, 4326)
   location_key <- paste(
     points$record_id,
@@ -110,6 +137,48 @@ index_water_right_comids <- function(water_rights, cache_path = NULL, workers = 
   attr(cached, "nldi_endpoint") <- "hydrolocation"
   if (!is.null(cache_path)) saveRDS(cached, cache_path)
   cached[match(points$record_id, cached$record_id), c("record_id", "comid", "nldi_error"), drop = FALSE]
+}
+
+#' Assign PODs to COMIDs from local NHDPlus catchments
+#'
+#' Intersect point PODs with local NHDPlus catchments. `FEATUREID` is the
+#' associated flowline COMID. Points with no single catchment match retain an
+#' explanatory `nldi_error`, allowing [index_water_right_comids()] to use NLDI
+#' as an optional fallback.
+#'
+#' @param water_rights Canonical point water-right records.
+#' @param catchments An `sf` layer containing one `featureid` or `FEATUREID`
+#'   field per NHDPlus catchment.
+#' @return A data frame with `record_id`, `comid`, and `nldi_error`.
+#' @export
+index_water_right_catchments <- function(water_rights, catchments) {
+  validate_water_rights(water_rights)
+  if (!inherits(catchments, "sf")) {
+    stop("`catchments` must be an sf layer.", call. = FALSE)
+  }
+  feature_column <- names(catchments)[tolower(names(catchments)) == "featureid"]
+  if (length(feature_column) != 1L) {
+    stop("`catchments` must contain exactly one `featureid` field.", call. = FALSE)
+  }
+  points <- sf::st_transform(water_rights, sf::st_crs(catchments))
+  matches <- sf::st_intersects(points, catchments)
+  match_count <- lengths(matches)
+  comid <- rep(NA_character_, nrow(points))
+  one_match <- match_count == 1L
+  if (any(one_match)) {
+    comid[one_match] <- as.character(catchments[[feature_column]][vapply(
+      matches[one_match], `[[`, integer(1), 1L
+    )])
+  }
+  error <- ifelse(
+    match_count == 0L,
+    "No intersecting local NHDPlus catchment.",
+    ifelse(match_count > 1L, "Point intersects multiple local NHDPlus catchments.", NA_character_)
+  )
+  data.frame(
+    record_id = as.character(water_rights$record_id), comid = comid,
+    nldi_error = error, stringsAsFactors = FALSE
+  )
 }
 
 #' Aggregate local water-right allocations by COMID
@@ -260,20 +329,22 @@ format_capture_sites_output <- function(accumulated_network, flowmet) {
     dplyr::select(flowmet, dplyr::any_of(c("comid", "maug_hist", "qe_08"))),
     by = "comid"
   )
-  for (field in capture_fields) {
-    target <- sub("^cumulative_", "", field)
-    output[[target]] <- output[[field]]
+  allocation_fields <- unique(sub("^cumulative_", "", capture_fields))
+  for (field in allocation_fields) {
+    output[[field]] <- output[[paste0("cumulative_", field)]]
+    percent_field <- paste0(field, "_percent")
+    output[[percent_field]] <- ifelse(
+      is.na(output$maug_hist) | output$maug_hist == 0,
+      NA_real_,
+      100 * output[[field]] / output$maug_hist
+    )
   }
-  output$intersecting_flow_all_together_percent <- 100 * output$intersecting_flow_all_together / output$maug_hist
-  output$intersecting_flow_fs_percent <- 100 * output$intersecting_flow_fs / output$maug_hist
-  output$intersecting_flow_private_percent <- 100 * output$intersecting_flow_private / output$maug_hist
+  # Keep each allocation directly beside its percent-of-August-flow value.
+  paired_allocation_fields <- as.vector(rbind(
+    allocation_fields, paste0(allocation_fields, "_percent")
+  ))
   output[, c(
-    "comid",
-    sub("^cumulative_", "", capture_fields),
-    "maug_hist", "qe_08",
-    "intersecting_flow_all_together_percent",
-    "intersecting_flow_fs_percent",
-    "intersecting_flow_private_percent",
+    "comid", "maug_hist", "qe_08", paired_allocation_fields,
     attr(output, "sf_column")
   ), drop = FALSE]
 }
