@@ -1,4 +1,17 @@
 ^WateRAT\.Rproj$
 ^\.Rproj\.user$
 ^README\.Rmd$
+^README\.html$
 ^\.lintr$
+^\.Rhistory$
+^\.Rprofile$
+^\.agents$
+^\.codex$
+^\.github$
+^_targets$
+^_targets\.R$
+^prep_targets\.R$
+^data$
+^dev$
+^docs$
+^STATE_ADAPTERS\.md$

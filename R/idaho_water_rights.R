@@ -456,7 +456,7 @@ refresh_idwr_network_water_rights <- function(
     }
     rbind(x, y)
   }
-  current <- if (is.null(scraped)) reused else if (!nrow(reused)) scraped else bind_rows(reused, scraped)
+  current <- if (is.null(scraped)) reused else if (!nrow(reused)) scraped else dplyr::bind_rows(reused, scraped)
   if (!nrow(current)) {
     stop("No current Idaho PODs remain after filtering; remove Idaho from the combined cache explicitly.", call. = FALSE)
   }
