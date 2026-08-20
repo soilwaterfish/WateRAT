@@ -22,6 +22,30 @@
     });
   });
 
+  // Keep documentation accordions usable even when the Bootstrap CDN script is
+  // unavailable (for example, in a local preview behind a restricted network).
+  document.querySelectorAll(".docs-content .accordion").forEach((accordion) => {
+    const buttons = [...accordion.querySelectorAll(".accordion-button")];
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const panel = document.getElementById(button.getAttribute("aria-controls"));
+        if (!panel) return;
+        const willOpen = !panel.classList.contains("show");
+        buttons.forEach((otherButton) => {
+          const otherPanel = document.getElementById(otherButton.getAttribute("aria-controls"));
+          otherButton.classList.add("collapsed");
+          otherButton.setAttribute("aria-expanded", "false");
+          otherPanel?.classList.remove("show");
+        });
+        if (willOpen) {
+          button.classList.remove("collapsed");
+          button.setAttribute("aria-expanded", "true");
+          panel.classList.add("show");
+        }
+      });
+    });
+  });
+
   const copyText = async (text) => {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
