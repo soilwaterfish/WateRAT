@@ -58,6 +58,10 @@ locations receive local catchment COMIDs without API calls; only unresolved
 locations reuse their successful NLDI fallback assignments. Use
 `refresh_idwr_network_water_rights(..., force_rescrape = TRUE)` only when IDWR
 has changed report-page content without changing the POD layer or report URL.
+Within preparation, `prepped_water_rights_cache` is the sole file-owning
+target for the combined GeoPackage. State targets return their cache path as an
+ordinary value, so a Montana upsert does not make Idaho's completed prep target
+outdated.
 
 ## State adapters and shared data contract
 

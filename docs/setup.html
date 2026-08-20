@@ -80,7 +80,7 @@ validate_water_rights(water_rights)
 <div class="d-flex flex-wrap gap-2 my-4"><a class="btn btn-primary" href="{{ '/walkthrough/' | relative_url }}">Open the complete walkthrough <i class="bi bi-arrow-right ms-1"></i></a><a class="btn btn-outline-primary" href="{{ '/targets/' | relative_url }}">Move to the targets pipeline</a></div>
 
 <h2>Prep once; reroute when needed</h2>
-<p>Preparation and network analysis intentionally use different targets scripts and stores. The preparation script filters each supported state, reuses stable Idaho report scrapes, selects Montana’s downstream-most POD per <code>WRKEY</code>, assigns COMIDs, intersects Forest Service ownership, and upserts state rows into one reusable GeoPackage. The analysis script reads only that prepared layer.</p>
+<p>Preparation and network analysis intentionally use different targets scripts and stores. The preparation script filters each supported state, reuses stable Idaho report scrapes, selects Montana’s downstream-most POD per <code>WRKEY</code>, assigns COMIDs, intersects Forest Service ownership, and upserts state rows into one reusable GeoPackage. The final prep target is the sole owner of that GeoPackage, so a Montana update does not invalidate completed Idaho preparation. The analysis script reads only that prepared layer.</p>
 <pre><code># Refresh the Idaho and Montana preparation cache. This uses prep_targets.R and its own
 # _targets_prep store, leaving the routing pipeline’s _targets store intact.
 targets::tar_make(script = "prep_targets.R", store = "_targets_prep")

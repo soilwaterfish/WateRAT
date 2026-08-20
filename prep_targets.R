@@ -15,12 +15,16 @@ clip_forest_service_boundary <- function(forest_service, boundary) {
   boundary_crs <- sf::st_crs(boundary)
   forest_service <- sf::st_transform(sf::st_make_valid(forest_service), 5070)
   boundary <- sf::st_transform(sf::st_make_valid(boundary), 5070)
-  sf::st_as_sf(
+  clipped <- sf::st_as_sf(
     sf::st_transform(
       sf::st_union(sf::st_intersection(forest_service, boundary)),
       boundary_crs
     )
   )
+  # A planar-valid polygon can become invalid for s2 after transformation back
+  # to geographic coordinates. Repair it before point-in-polygon FS checks.
+  clipped <- sf::st_make_valid(clipped)
+  clipped[!sf::st_is_empty(clipped), , drop = FALSE]
 }
 
 states_path <- Sys.getenv("WATERRAT_STATES_PATH", unset = file.path("data", "states.gpkg"))
@@ -31,6 +35,12 @@ prep_aoi_path <- Sys.getenv("WATERRAT_PREP_AOI_PATH", unset = states_path)
 prep_aoi_layer <- Sys.getenv("WATERRAT_PREP_AOI_LAYER", unset = "states")
 prep_max_pods <- suppressWarnings(as.integer(Sys.getenv("WATERRAT_PREP_MAX_PODS", unset = "")))
 if (is.na(prep_max_pods)) prep_max_pods <- NULL
+# Temporary migration option for an existing combined cache created before the
+# final cache was the sole file-owning target. Set to true once to preserve the
+# completed Idaho rows while repairing/rebuilding a downstream state.
+reuse_existing_idaho_cache <- tolower(Sys.getenv("WATERRAT_REUSE_EXISTING_ID_CACHE", unset = "false")) %in% c(
+  "true", "1", "yes"
+)
 admin_path <- Sys.getenv("WATERRAT_ADMIN_SHP", unset = file.path("data", "admin.shp"))
 prepped_path <- Sys.getenv(
   "WATERRAT_PREPPED_WATER_RIGHTS",
@@ -54,6 +64,12 @@ nhdplus_path <- Sys.getenv(
   )
 )
 nhdplus_layer <- Sys.getenv("WATERRAT_NHDPLUS_LAYER", unset = "NHDFlowline_Network")
+
+has_prepped_state <- function(path, state) {
+  if (!file.exists(path)) return(FALSE)
+  cached <- tryCatch(read_prepped_water_rights(path), error = function(error) NULL)
+  !is.null(cached) && any(cached$state == state)
+}
 
 tar_option_set(packages = c("WaterRAT", "dplyr", "sf"))
 
@@ -119,16 +135,20 @@ list(
     montana_catchments,
     read_nhdplus_catchments(nhdplus_source, montana_boundary, clip = FALSE)
   ),
-  # Idaho writes first. Montana depends on this target below so both adapters
-  # safely upsert one shared GeoPackage rather than writing concurrently.
+  # Idaho writes first. This target deliberately returns a path as an ordinary
+  # R object: the final target below is the sole `format = "file"` owner of the
+  # shared GeoPackage after Montana has upserted its rows.
   tar_target(
     idaho_prepped_cache,
-    refresh_idwr_network_water_rights(
-      idwr_source, idaho_boundary, idaho_fs_boundary, id_nldi_path,
-      catchments = idaho_catchments, cache_path = prepped_path,
-      max_pods = prep_max_pods, workers = 10L, throttle_seconds = 0.5
-    )$cache_path,
-    format = "file"
+    if (reuse_existing_idaho_cache && has_prepped_state(prepped_path, "ID")) {
+      prepped_path
+    } else {
+      refresh_idwr_network_water_rights(
+        idwr_source, idaho_boundary, idaho_fs_boundary, id_nldi_path,
+        catchments = idaho_catchments, cache_path = prepped_path,
+        max_pods = prep_max_pods, workers = 10L, throttle_seconds = 0.5
+      )$cache_path
+    }
   ),
   tar_target(
     prepped_water_rights_cache,
