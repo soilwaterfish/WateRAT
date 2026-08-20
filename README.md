@@ -47,6 +47,11 @@ targets::tar_make(script = "prep_targets.R", store = "_targets_prep")
 targets::tar_make()
 ```
 
+Preparation writes `data/cache/prepped/water_rights.xml` beside its reusable
+GeoPackage cache. The FGDC CSDGM metadata record describes the canonical POD
+fields, state adapters, COMID assignment, ownership intersection, and source
+provenance.
+
 The separate targets stores prevent ordinary network analysis from invalidating
 the state-preparation cache. On a future refresh, removed state records are
 reported as retired, changed records are re-prepared, and unchanged POD
@@ -97,4 +102,9 @@ The main routing product can be inspected after a successful analysis run:
 ```r
 targets::tar_read(network_allocation)
 targets::tar_read(network_allocation_gpkg)
+targets::tar_read(network_allocation_metadata)
 ```
+
+Every final GeoPackage has a same-named `.xml` companion using the FGDC CSDGM
+metadata structure. It records field definitions, calculations, provenance,
+and the authoritative state, NHDPlus, FlowMet, and Forest Service sources.

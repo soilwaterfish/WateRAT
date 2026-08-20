@@ -162,5 +162,19 @@ list(
       )$cache_path
     },
     format = "file"
+  ),
+  tar_target(
+    prepped_water_rights_metadata,
+    {
+      prepped_water_rights_cache
+      metadata_path <- paste0(tools::file_path_sans_ext(prepped_path), ".xml")
+      write_prepped_water_rights_metadata(
+        water_rights = read_prepped_water_rights(prepped_water_rights_cache),
+        path = metadata_path,
+        gpkg_path = prepped_water_rights_cache,
+        layer = "water_rights_prepped"
+      )
+    },
+    format = "file"
   )
 )

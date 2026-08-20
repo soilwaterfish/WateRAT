@@ -142,5 +142,19 @@ list(
       result_path
     },
     format = "file"
+  ),
+  tar_target(
+    network_allocation_metadata,
+    {
+      network_allocation_gpkg
+      metadata_path <- paste0(tools::file_path_sans_ext(result_path), ".xml")
+      write_network_allocation_metadata(
+        network_allocation = network_allocation,
+        path = metadata_path,
+        gpkg_path = network_allocation_gpkg,
+        layer = "network_allocation"
+      )
+    },
+    format = "file"
   )
 )
